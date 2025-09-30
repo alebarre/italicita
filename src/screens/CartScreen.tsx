@@ -8,54 +8,33 @@ import {
   FlatList,
   Alert,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import { CartItem } from "../types";
+import { useNavigation, NavigationProp } from "@react-navigation/native";
+import { useCart } from "../contexts/CartContext";
 
-// Mock data - depois substituiremos por Context API
-const mockCart: CartItem[] = [
-  {
-    id: 1,
-    name: "Fettuccine Alfredo",
-    price: 32.9,
-    quantity: 2,
-  },
-  {
-    id: 4,
-    name: "Pão de Alho",
-    price: 12.9,
-    quantity: 1,
-  },
-];
+type RootStackParamList = {
+  Home: undefined;
+  Checkout: undefined;
+};
 
 const CartScreen: React.FC = () => {
-  const navigation = useNavigation();
-  const [cart, setCart] = React.useState<CartItem[]>(mockCart);
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const { state, updateQuantity, removeItem, clearCart } = useCart();
 
-  const updateQuantity = (id: number, change: number) => {
-    setCart((prevCart) => {
-      const itemIndex = prevCart.findIndex((item) => item.id === id);
-
-      if (itemIndex === -1) return prevCart;
-
-      const newCart = [...prevCart];
-      const newQuantity = newCart[itemIndex].quantity + change;
+  const updateItemQuantity = (id: number, change: number) => {
+    const item = state.items.find((item) => item.id === id);
+    if (item) {
+      const newQuantity = item.quantity + change;
 
       if (newQuantity <= 0) {
-        // Remove item se quantidade for 0
-        newCart.splice(itemIndex, 1);
+        // Se zerar, remove o item
+        handleRemoveItem(id);
       } else {
-        // Atualiza quantidade
-        newCart[itemIndex] = {
-          ...newCart[itemIndex],
-          quantity: newQuantity,
-        };
+        updateQuantity(id, newQuantity);
       }
-
-      return newCart;
-    });
+    }
   };
 
-  const removeItem = (id: number) => {
+  const handleRemoveItem = (id: number) => {
     Alert.alert(
       "Remover item",
       "Tem certeza que deseja remover este item do carrinho?",
@@ -64,25 +43,43 @@ const CartScreen: React.FC = () => {
         {
           text: "Remover",
           style: "destructive",
-          onPress: () => {
-            setCart((prevCart) => prevCart.filter((item) => item.id !== id));
-          },
+          onPress: () => removeItem(id),
         },
       ]
     );
   };
 
-  const renderCartItem = ({ item }: { item: CartItem }) => (
+  const handleClearCart = () => {
+    if (state.items.length === 0) return;
+
+    Alert.alert(
+      "Limpar carrinho",
+      "Tem certeza que deseja remover todos os itens do carrinho?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Limpar Tudo",
+          style: "destructive",
+          onPress: () => clearCart(),
+        },
+      ]
+    );
+  };
+
+  const renderCartItem = ({ item }: { item: any }) => (
     <View style={styles.cartItem}>
       <View style={styles.itemInfo}>
         <Text style={styles.itemName}>{item.name}</Text>
         <Text style={styles.itemPrice}>R$ {item.price.toFixed(2)}</Text>
+        <Text style={styles.itemSubtotal}>
+          Subtotal: R$ {(item.price * item.quantity).toFixed(2)}
+        </Text>
       </View>
 
       <View style={styles.quantityControls}>
         <TouchableOpacity
           style={styles.quantityButton}
-          onPress={() => updateQuantity(item.id, -1)}
+          onPress={() => updateItemQuantity(item.id, -1)}
         >
           <Text style={styles.quantityButtonText}>-</Text>
         </TouchableOpacity>
@@ -91,14 +88,14 @@ const CartScreen: React.FC = () => {
 
         <TouchableOpacity
           style={styles.quantityButton}
-          onPress={() => updateQuantity(item.id, 1)}
+          onPress={() => updateItemQuantity(item.id, 1)}
         >
           <Text style={styles.quantityButtonText}>+</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.removeButton}
-          onPress={() => removeItem(item.id)}
+          onPress={() => handleRemoveItem(item.id)}
         >
           <Text style={styles.removeButtonText}>×</Text>
         </TouchableOpacity>
@@ -106,14 +103,11 @@ const CartScreen: React.FC = () => {
     </View>
   );
 
-  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const totalPrice = cart.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
+  const deliveryFee = 5.0;
+  const finalTotal = state.total + deliveryFee;
 
   const proceedToCheckout = () => {
-    if (cart.length === 0) {
+    if (state.items.length === 0) {
       Alert.alert(
         "Carrinho vazio",
         "Adicione itens ao carrinho antes de finalizar o pedido."
@@ -121,11 +115,11 @@ const CartScreen: React.FC = () => {
       return;
     }
 
-    // Navegar para tela de checkout (vamos criar depois)
-    Alert.alert("Checkout", "Redirecionando para checkout...");
+    // Navegar para tela de checkout usando Stack Navigator
+    navigation.navigate("Checkout");
   };
 
-  if (cart.length === 0) {
+  if (state.items.length === 0) {
     return (
       <View style={styles.container}>
         <View style={styles.emptyContainer}>
@@ -147,10 +141,18 @@ const CartScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <ScrollView style={styles.cartContainer}>
-        <Text style={styles.title}>Meu Carrinho</Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>🛒 Meu Carrinho</Text>
+          <TouchableOpacity
+            style={styles.clearCartButton}
+            onPress={handleClearCart}
+          >
+            <Text style={styles.clearCartText}>Limpar Tudo</Text>
+          </TouchableOpacity>
+        </View>
 
         <FlatList
-          data={cart}
+          data={state.items}
           renderItem={renderCartItem}
           keyExtractor={(item) => item.id.toString()}
           scrollEnabled={false}
@@ -158,18 +160,16 @@ const CartScreen: React.FC = () => {
 
         <View style={styles.summary}>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Itens ({totalItems})</Text>
-            <Text style={styles.summaryValue}>R$ {totalPrice.toFixed(2)}</Text>
+            <Text style={styles.summaryLabel}>Itens ({state.itemCount})</Text>
+            <Text style={styles.summaryValue}>R$ {state.total.toFixed(2)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Taxa de Entrega</Text>
-            <Text style={styles.summaryValue}>R$ 5,00</Text>
+            <Text style={styles.summaryValue}>R$ {deliveryFee.toFixed(2)}</Text>
           </View>
           <View style={[styles.summaryRow, styles.totalRow]}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>
-              R$ {(totalPrice + 5).toFixed(2)}
-            </Text>
+            <Text style={styles.totalValue}>R$ {finalTotal.toFixed(2)}</Text>
           </View>
         </View>
       </ScrollView>
@@ -179,7 +179,7 @@ const CartScreen: React.FC = () => {
         onPress={proceedToCheckout}
       >
         <Text style={styles.checkoutButtonText}>
-          Finalizar Pedido - R$ {(totalPrice + 5).toFixed(2)}
+          Finalizar Pedido - R$ {finalTotal.toFixed(2)}
         </Text>
       </TouchableOpacity>
     </View>
@@ -195,12 +195,26 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 15,
   },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 20,
-    textAlign: "center",
     color: "#333",
+  },
+  clearCartButton: {
+    padding: 8,
+    backgroundColor: "#ff6b6b",
+    borderRadius: 6,
+  },
+  clearCartText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "bold",
   },
   cartItem: {
     backgroundColor: "white",
@@ -226,7 +240,12 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   itemPrice: {
-    fontSize: 16,
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 2,
+  },
+  itemSubtotal: {
+    fontSize: 14,
     fontWeight: "bold",
     color: "#e74c3c",
   },

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   StyleSheet,
   View,
@@ -7,10 +7,11 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
-import { MenuItem, CartItem } from "../types";
+import { MenuItem } from "../types";
+import { useCart } from "../contexts/CartContext";
 
 const HomeScreen: React.FC = () => {
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const { state, addItem } = useCart();
 
   const menuItems: MenuItem[] = [
     {
@@ -48,23 +49,21 @@ const HomeScreen: React.FC = () => {
       price: 18.9,
       category: "acompanhamentos",
     },
+    {
+      id: 6,
+      name: "Tiramisu",
+      description: "Sobremesa italiana clássica",
+      price: 16.9,
+      category: "sobremesas",
+    },
+    {
+      id: 7,
+      name: "Refrigerante 2L",
+      description: "Coca-Cola, Guaraná ou Fanta",
+      price: 10.9,
+      category: "bebidas",
+    },
   ];
-
-  const addToCart = (item: MenuItem) => {
-    setCart((prevCart) => {
-      const existingItem = prevCart.find((cartItem) => cartItem.id === item.id);
-
-      if (existingItem) {
-        return prevCart.map((cartItem) =>
-          cartItem.id === item.id
-            ? { ...cartItem, quantity: cartItem.quantity + 1 }
-            : cartItem
-        );
-      } else {
-        return [...prevCart, { ...item, quantity: 1 }];
-      }
-    });
-  };
 
   const renderMenuItem = ({ item }: { item: MenuItem }) => (
     <View style={styles.menuItem}>
@@ -73,48 +72,60 @@ const HomeScreen: React.FC = () => {
         <Text style={styles.itemDescription}>{item.description}</Text>
         <Text style={styles.itemPrice}>R$ {item.price.toFixed(2)}</Text>
       </View>
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => addToCart(item)}
-      >
+      <TouchableOpacity style={styles.addButton} onPress={() => addItem(item)}>
         <Text style={styles.addButtonText}>+</Text>
       </TouchableOpacity>
     </View>
   );
 
-  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const totalPrice = cart.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
+  const getItemsByCategory = (category: MenuItem["category"]) => {
+    return menuItems.filter((item) => item.category === category);
+  };
 
   return (
     <View style={styles.container}>
       <ScrollView style={styles.menuContainer}>
-        <Text style={styles.sectionTitle}>Massas Especiais</Text>
+        <Text style={styles.sectionTitle}>🍝 Massas Especiais</Text>
         <FlatList
-          data={menuItems.filter((item) => item.category === "massas")}
+          data={getItemsByCategory("massas")}
           renderItem={renderMenuItem}
           keyExtractor={(item) => item.id.toString()}
           scrollEnabled={false}
         />
 
-        <Text style={styles.sectionTitle}>Acompanhamentos</Text>
+        <Text style={styles.sectionTitle}>🥗 Acompanhamentos</Text>
         <FlatList
-          data={menuItems.filter((item) => item.category === "acompanhamentos")}
+          data={getItemsByCategory("acompanhamentos")}
+          renderItem={renderMenuItem}
+          keyExtractor={(item) => item.id.toString()}
+          scrollEnabled={false}
+        />
+
+        <Text style={styles.sectionTitle}>🍰 Sobremesas</Text>
+        <FlatList
+          data={getItemsByCategory("sobremesas")}
+          renderItem={renderMenuItem}
+          keyExtractor={(item) => item.id.toString()}
+          scrollEnabled={false}
+        />
+
+        <Text style={styles.sectionTitle}>🥤 Bebidas</Text>
+        <FlatList
+          data={getItemsByCategory("bebidas")}
           renderItem={renderMenuItem}
           keyExtractor={(item) => item.id.toString()}
           scrollEnabled={false}
         />
       </ScrollView>
 
-      {totalItems > 0 && (
+      {state.itemCount > 0 && (
         <View style={styles.cartSummary}>
           <Text style={styles.cartText}>
-            {totalItems} {totalItems === 1 ? "item" : "itens"} no carrinho
+            {state.itemCount} {state.itemCount === 1 ? "item" : "itens"} no
+            carrinho
           </Text>
           <Text style={styles.cartTotal}>
-            Total: R$ {totalPrice.toFixed(2)}
+            Total: R$ {state.total.toFixed(2)}
           </Text>
         </View>
       )}
@@ -122,6 +133,7 @@ const HomeScreen: React.FC = () => {
   );
 };
 
+// Mesmos styles do anterior
 const styles = StyleSheet.create({
   container: {
     flex: 1,

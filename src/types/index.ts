@@ -48,3 +48,17 @@ export interface DeliveryData {
     phone: string;
     complement?: string;
 }
+
+
+// Tipos para navegação
+export type RootStackParamList = {
+    MainTabs: undefined;
+    Checkout: undefined;
+};
+
+export type RootTabParamList = {
+    Home: undefined;
+    Cart: undefined;
+    Orders: undefined;
+    Profile: undefined;
+};
