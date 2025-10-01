@@ -109,6 +109,7 @@ const CheckoutScreen: React.FC = () => {
   };
 
   // Processar pagamento com cartão (fluxo WhatsApp)
+  // Processar pagamento com cartão (fluxo WhatsApp) - CORRIGIDO
   const processCardPayment = async () => {
     setIsLoading(true);
 
@@ -120,7 +121,7 @@ const CheckoutScreen: React.FC = () => {
       // Criar detalhes do pedido
       const orderDetails: OrderDetails = {
         orderNumber: newOrderNumber,
-        items: state.items,
+        items: state.items, // ✅ Usa os itens atuais do carrinho
         total: finalTotal,
         deliveryData,
         paymentMethod: paymentData.method,
@@ -136,16 +137,18 @@ const CheckoutScreen: React.FC = () => {
       );
 
       if (whatsappSuccess) {
-        setCurrentStep("success");
+        // ✅ SÓ AQUI limpa o carrinho - após sucesso no WhatsApp
         clearCart();
+        setCurrentStep("success");
       } else {
         Alert.alert(
           "Pedido Confirmado",
           `Seu pedido ${newOrderNumber} foi recebido, mas não foi possível abrir o WhatsApp. Entre em contato pelo telefone (11) 9999-9999.`,
           [{ text: "OK" }]
         );
-        setCurrentStep("success");
+        // ✅ SÓ AQUI limpa o carrinho - mesmo sem WhatsApp
         clearCart();
+        setCurrentStep("success");
       }
     } catch (error) {
       console.error("Erro ao finalizar pedido:", error);
@@ -159,22 +162,19 @@ const CheckoutScreen: React.FC = () => {
   };
 
   // Processar pagamento com PIX
+  // No CheckoutScreen.tsx, modifique a navegação para PIX:
   const processPixPayment = () => {
     const orderNumber = generateOrderNumber();
     setOrderNumber(orderNumber);
 
-    // Navegar para tela de pagamento PIX
+    // Navegar para tela de pagamento PIX passando clearCart
     navigation.navigate("PixPayment", {
       orderId: orderNumber,
       amount: finalTotal,
       deliveryData,
       items: state.items,
+      clearCart: clearCart, // ✅ Passa a função para limpar carrinho
     });
-
-    // Limpar carrinho após navegação
-    setTimeout(() => {
-      clearCart();
-    }, 1000);
   };
 
   // Finalizar pedido

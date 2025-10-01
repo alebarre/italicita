@@ -31,6 +31,7 @@ const PixPaymentScreen: React.FC = () => {
     amount = 0,
     deliveryData = {} as DeliveryData,
     items = [] as CartItem[],
+    clearCart, // ✅ Agora recebe clearCart dos params
   } = route.params || {};
 
   const [pixPayload, setPixPayload] = useState<string>("");
@@ -175,10 +176,16 @@ const PixPaymentScreen: React.FC = () => {
         {
           text: "Já efetuei o pagamento",
           onPress: () => {
+            // ✅ LIMPA O CARRINHO ANTES DE NAVEGAR
+            if (clearCart) {
+              clearCart();
+            }
+
             navigation.reset({
               index: 0,
               routes: [{ name: "MainTabs" }],
             });
+
             Alert.alert(
               "Pedido Confirmado!",
               `Seu pedido ${orderId} está sendo preparado. Você receberá atualizações pelo WhatsApp.`

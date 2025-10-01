@@ -7,6 +7,7 @@ export type RootStackParamList = {
         amount: number;
         deliveryData: DeliveryData;
         items: CartItem[];
+        clearCart?: () => void; // ✅ Adiciona clearCart opcional
     };
 };
 

@@ -290,6 +290,14 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  imageContainer: {
+    height: 160, // Aumentei um pouco para melhor visualização
+    overflow: "hidden",
+  },
+  itemImage: {
+    width: "100%",
+    height: "100%",
+  },
   imagePlaceholder: {
     height: 120,
     backgroundColor: "#f8f9fa",
