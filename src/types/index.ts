@@ -1,19 +1,150 @@
+// Tipos para navegação (mantemos os existentes)
+export type RootStackParamList = {
+    MainTabs: undefined;
+    Checkout: undefined;
+    PixPayment: {
+        orderId: string;
+        amount: number;
+        deliveryData: DeliveryData;
+        items: CartItem[];
+    };
+};
+
+export type RootTabParamList = {
+    Home: undefined;
+    Cart: undefined;
+    Orders: undefined;
+    Profile: undefined;
+};
+
+// Tipos principais do sistema
 export interface MenuItem {
-    id: number;
+    id: string;
     name: string;
     description: string;
-    price: number;
-    category: 'massas' | 'acompanhamentos' | 'bebidas' | 'sobremesas';
-    image?: string;
+    category: ProductCategory;
+    basePrice: number;
+    images: string[];
+    isAvailable: boolean;
+    preparationTime: number; // em minutos
+    tags: string[];
+    // Configurações específicas do prato
+    allowedPasta?: PastaOption[]; // Massas permitidas para este prato
+    allowedSizes: SizeOption[]; // Tamanhos disponíveis
+    allowedSauces?: SauceOption[]; // Molhos disponíveis
+    allowedAddOns?: AddOnOption[]; // Adicionais disponíveis
+    allowedExtras?: ExtraOption[]; // Extras disponíveis
 }
 
-export interface CartItem {
-    id: number;
+// Categorias de produtos
+export type ProductCategory =
+    | 'massas'
+    | 'risotos'
+    | 'carnes'
+    | 'saladas'
+    | 'sobremesas'
+    | 'bebidas'
+    | 'acompanhamentos';
+
+// Opção de Massa
+export interface PastaOption {
+    id: string;
     name: string;
-    price: number;
-    quantity: number;
+    description: string;
+    weight: string; // ex: "300g", "400g"
+    priceAdjustment: number; // pode ser 0 se não tiver acréscimo
+    isAvailable: boolean;
 }
 
+// Opção de Tamanho
+export interface SizeOption {
+    id: string;
+    name: 'Junior' | 'Adulto';
+    description: string;
+    weight: string; // ex: "300g", "500g"
+    priceAdjustment: number; // Junior: 0, Adulto: valor variável
+    isAvailable: boolean;
+}
+
+// Opção de Molho
+export interface SauceOption {
+    id: string;
+    name: string;
+    description: string;
+    weight: string; // ex: "50ml", "100ml"
+    price: number; // preço adicional
+    isAvailable: boolean;
+}
+
+// Item Adicional (com peso)
+export interface AddOnOption {
+    id: string;
+    name: string;
+    description: string;
+    weight: string; // ex: "100g", "2 unidades"
+    price: number; // preço adicional
+    isAvailable: boolean;
+}
+
+// Item Extra (sem peso)
+export interface ExtraOption {
+    id: string;
+    name: string;
+    description: string;
+    price: number; // preço adicional
+    isAvailable: boolean;
+}
+
+// Item do Carrinho com customizações
+export interface CartItem {
+    id: string; // ID único do item no carrinho
+    menuItemId: string; // Referência ao item do menu
+    name: string;
+    basePrice: number;
+    quantity: number;
+
+    // Customizações escolhidas
+    selectedPasta?: PastaOption;
+    selectedSize: SizeOption;
+    selectedSauce?: SauceOption;
+    selectedAddOns: AddOnOption[];
+    selectedExtras: ExtraOption[];
+
+    // Preço calculado
+    finalPrice: number;
+}
+
+// Função para calcular preço final de um item
+export const calculateItemPrice = (item: Omit<CartItem, 'id' | 'finalPrice'>): number => {
+    let price = item.basePrice;
+
+    // Adiciona ajuste da massa (se houver)
+    if (item.selectedPasta) {
+        price += item.selectedPasta.priceAdjustment;
+    }
+
+    // Adiciona ajuste do tamanho
+    price += item.selectedSize.priceAdjustment;
+
+    // Adiciona preço do molho (se houver)
+    if (item.selectedSauce) {
+        price += item.selectedSauce.price;
+    }
+
+    // Adiciona preços dos adicionais
+    item.selectedAddOns.forEach(addOn => {
+        price += addOn.price;
+    });
+
+    // Adiciona preços dos extras
+    item.selectedExtras.forEach(extra => {
+        price += extra.price;
+    });
+
+    return price;
+};
+
+// Tipos existentes (mantemos para compatibilidade)
 export interface Order {
     id: string;
     items: CartItem[];
@@ -48,17 +179,3 @@ export interface DeliveryData {
     phone: string;
     complement?: string;
 }
-
-
-// Tipos para navegação
-export type RootStackParamList = {
-    MainTabs: undefined;
-    Checkout: undefined;
-};
-
-export type RootTabParamList = {
-    Home: undefined;
-    Cart: undefined;
-    Orders: undefined;
-    Profile: undefined;
-};

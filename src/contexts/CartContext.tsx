@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, ReactNode } from "react";
-import { CartItem, MenuItem } from "../types";
+import { CartItem, MenuItem, calculateItemPrice } from "../types";
 
 // Estado do carrinho
 interface CartState {
@@ -8,50 +8,102 @@ interface CartState {
   itemCount: number;
 }
 
-// Ações disponíveis
+// Ações disponíveis - ATUALIZADA
 type CartAction =
-  | { type: "ADD_ITEM"; payload: MenuItem }
-  | { type: "REMOVE_ITEM"; payload: number }
-  | { type: "UPDATE_QUANTITY"; payload: { id: number; quantity: number } }
+  | {
+      type: "ADD_ITEM";
+      payload: {
+        menuItem: MenuItem;
+        customizations: Omit<
+          CartItem,
+          "id" | "menuItemId" | "name" | "basePrice" | "quantity" | "finalPrice"
+        >;
+      };
+    }
+  | { type: "REMOVE_ITEM"; payload: string }
+  | { type: "UPDATE_QUANTITY"; payload: { id: string; quantity: number } }
   | { type: "CLEAR_CART" };
 
-// Context com estado e funções
+// Context com estado e funções - ATUALIZADA
 interface CartContextData {
   state: CartState;
-  addItem: (item: MenuItem) => void;
-  removeItem: (id: number) => void;
-  updateQuantity: (id: number, quantity: number) => void;
+  addItem: (
+    menuItem: MenuItem,
+    customizations: Omit<
+      CartItem,
+      "id" | "menuItemId" | "name" | "basePrice" | "quantity" | "finalPrice"
+    >
+  ) => void;
+  removeItem: (id: string) => void;
+  updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
 }
 
 // Criar Context
 const CartContext = createContext<CartContextData | undefined>(undefined);
 
-// Reducer para gerenciar estado
+// Função auxiliar para gerar ID único baseado nas customizações
+const generateItemId = (menuItemId: string, customizations: any): string => {
+  const customizationString = JSON.stringify({
+    pasta: customizations.selectedPasta?.id,
+    size: customizations.selectedSize?.id,
+    sauce: customizations.selectedSauce?.id,
+    addOns: customizations.selectedAddOns?.map((a: any) => a.id) || [],
+    extras: customizations.selectedExtras?.map((e: any) => e.id) || [],
+  });
+
+  // Gera um hash simples baseado nas customizações
+  let hash = 0;
+  for (let i = 0; i < customizationString.length; i++) {
+    const char = customizationString.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+
+  return `${menuItemId}-${Math.abs(hash).toString(36).substring(0, 8)}`;
+};
+
+// Reducer para gerenciar estado - ATUALIZADA
 const cartReducer = (state: CartState, action: CartAction): CartState => {
+  console.log(
+    "Cart Action:",
+    action.type,
+    "payload" in action ? action.payload : undefined
+  );
+
   switch (action.type) {
     case "ADD_ITEM": {
-      const existingItem = state.items.find(
-        (item) => item.id === action.payload.id
-      );
+      const { menuItem, customizations } = action.payload;
+
+      // Gera ID único baseado nas customizações
+      const itemId = generateItemId(menuItem.id, customizations);
+
+      const existingItem = state.items.find((item) => item.id === itemId);
 
       if (existingItem) {
-        // Se item já existe, aumenta quantidade
+        // Se item idêntico já existe, aumenta quantidade
         const updatedItems = state.items.map((item) =>
-          item.id === action.payload.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+          item.id === itemId ? { ...item, quantity: item.quantity + 1 } : item
         );
 
         return calculateTotals(updatedItems);
       } else {
-        // Adiciona novo item
-        const newItem: CartItem = {
-          ...action.payload,
+        // Cria o item completo com preço calculado
+        const baseItem = {
+          id: itemId,
+          menuItemId: menuItem.id,
+          name: menuItem.name,
+          basePrice: menuItem.basePrice,
           quantity: 1,
+          ...customizations,
         };
-        const updatedItems = [...state.items, newItem];
 
+        const finalItem: CartItem = {
+          ...baseItem,
+          finalPrice: calculateItemPrice(baseItem),
+        };
+
+        const updatedItems = [...state.items, finalItem];
         return calculateTotals(updatedItems);
       }
     }
@@ -94,7 +146,7 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
 // Função auxiliar para calcular totais
 const calculateTotals = (items: CartItem[]): CartState => {
   const total = items.reduce(
-    (sum, item) => sum + item.price * item.quantity,
+    (sum, item) => sum + item.finalPrice * item.quantity,
     0
   );
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -118,21 +170,36 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     itemCount: 0,
   });
 
-  const addItem = (item: MenuItem) => {
-    dispatch({ type: "ADD_ITEM", payload: item });
+  const addItem = (
+    menuItem: MenuItem,
+    customizations: Omit<
+      CartItem,
+      "id" | "menuItemId" | "name" | "basePrice" | "quantity" | "finalPrice"
+    >
+  ) => {
+    console.log("🛒 ADD_ITEM with customizations:", {
+      menuItem,
+      customizations,
+    });
+    dispatch({ type: "ADD_ITEM", payload: { menuItem, customizations } });
   };
 
-  const removeItem = (id: number) => {
+  const removeItem = (id: string) => {
+    console.log("🛒 REMOVE_ITEM called with id:", id);
     dispatch({ type: "REMOVE_ITEM", payload: id });
   };
 
-  const updateQuantity = (id: number, quantity: number) => {
+  const updateQuantity = (id: string, quantity: number) => {
+    console.log("🛒 UPDATE_QUANTITY called:", id, quantity);
     dispatch({ type: "UPDATE_QUANTITY", payload: { id, quantity } });
   };
 
   const clearCart = () => {
+    console.log("🛒 CLEAR_CART called");
     dispatch({ type: "CLEAR_CART" });
   };
+
+  console.log("🛒 Current cart state:", state);
 
   return (
     <CartContext.Provider

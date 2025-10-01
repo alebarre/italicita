@@ -9,23 +9,20 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
 import { useCart } from "../contexts/CartContext";
-import { DeliveryData, PaymentData } from "../types";
+import { DeliveryData, PaymentData, RootStackParamList } from "../types";
+import { whatsappService, OrderDetails } from "../services/whatsappService";
 
 type CheckoutStep = "delivery" | "payment" | "review" | "success";
-
-import type { StackNavigationProp } from "@react-navigation/stack";
-
-type RootStackParamList = {
-  MainTabs: undefined;
-};
 
 const CheckoutScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { state, clearCart } = useCart();
   const [currentStep, setCurrentStep] = useState<CheckoutStep>("delivery");
   const [isLoading, setIsLoading] = useState(false);
+  const [orderNumber, setOrderNumber] = useState("");
 
   // Estados do formulário
   const [deliveryData, setDeliveryData] = useState<DeliveryData>({
@@ -102,16 +99,91 @@ const CheckoutScreen: React.FC = () => {
     }
   };
 
-  // Finalizar pedido
-  const handlePlaceOrder = async () => {
+  // Gerar número de pedido único
+  const generateOrderNumber = (): string => {
+    const timestamp = new Date().getTime().toString().slice(-6);
+    const random = Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(3, "0");
+    return `IT${timestamp}${random}`;
+  };
+
+  // Processar pagamento com cartão (fluxo WhatsApp)
+  const processCardPayment = async () => {
     setIsLoading(true);
 
-    // Simular processamento do pedido
-    setTimeout(() => {
+    try {
+      // Gerar número do pedido
+      const newOrderNumber = generateOrderNumber();
+      setOrderNumber(newOrderNumber);
+
+      // Criar detalhes do pedido
+      const orderDetails: OrderDetails = {
+        orderNumber: newOrderNumber,
+        items: state.items,
+        total: finalTotal,
+        deliveryData,
+        paymentMethod: paymentData.method,
+        deliveryFee,
+      };
+
+      // Simular processamento
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      // Abrir WhatsApp com detalhes do pedido
+      const whatsappSuccess = await whatsappService.openWhatsAppWithOrder(
+        orderDetails
+      );
+
+      if (whatsappSuccess) {
+        setCurrentStep("success");
+        clearCart();
+      } else {
+        Alert.alert(
+          "Pedido Confirmado",
+          `Seu pedido ${newOrderNumber} foi recebido, mas não foi possível abrir o WhatsApp. Entre em contato pelo telefone (11) 9999-9999.`,
+          [{ text: "OK" }]
+        );
+        setCurrentStep("success");
+        clearCart();
+      }
+    } catch (error) {
+      console.error("Erro ao finalizar pedido:", error);
+      Alert.alert(
+        "Erro",
+        "Não foi possível processar seu pedido. Tente novamente."
+      );
+    } finally {
       setIsLoading(false);
-      setCurrentStep("success");
+    }
+  };
+
+  // Processar pagamento com PIX
+  const processPixPayment = () => {
+    const orderNumber = generateOrderNumber();
+    setOrderNumber(orderNumber);
+
+    // Navegar para tela de pagamento PIX
+    navigation.navigate("PixPayment", {
+      orderId: orderNumber,
+      amount: finalTotal,
+      deliveryData,
+      items: state.items,
+    });
+
+    // Limpar carrinho após navegação
+    setTimeout(() => {
       clearCart();
-    }, 2000);
+    }, 1000);
+  };
+
+  // Finalizar pedido
+  const handlePlaceOrder = async () => {
+    if (paymentData.method === "pix") {
+      processPixPayment();
+    } else {
+      await processCardPayment();
+    }
   };
 
   // Renderizar conteúdo baseado no passo atual
@@ -276,7 +348,7 @@ const CheckoutScreen: React.FC = () => {
       {paymentData.method === "pix" && (
         <View style={styles.pixInfo}>
           <Text style={styles.pixDescription}>
-            Ao confirmar o pedido, você receberá um código PIX para pagamento. O
+            Você será redirecionado para uma tela segura de pagamento PIX. O
             pedido será confirmado automaticamente após o pagamento.
           </Text>
         </View>
@@ -297,7 +369,7 @@ const CheckoutScreen: React.FC = () => {
               {item.quantity}x {item.name}
             </Text>
             <Text style={styles.orderItemPrice}>
-              R$ {(item.price * item.quantity).toFixed(2)}
+              R$ {(item.basePrice * item.quantity).toFixed(2)}
             </Text>
           </View>
         ))}
@@ -318,9 +390,9 @@ const CheckoutScreen: React.FC = () => {
         <Text style={styles.paymentText}>
           {paymentData.method === "pix" ? "PIX" : "Cartão"}
         </Text>
-        {paymentData.method === "card" && (
+        {paymentData.method === "card" && paymentData.cardNumber && (
           <Text style={styles.paymentText}>
-            **** **** **** {paymentData.cardNumber?.slice(-4)}
+            **** **** **** {paymentData.cardNumber.slice(-4)}
           </Text>
         )}
       </View>
@@ -342,41 +414,42 @@ const CheckoutScreen: React.FC = () => {
     </View>
   );
 
-  // Passo 4: Sucesso
-  // Passo 4: Sucesso
+  // Passo 4: Sucesso (apenas para pagamento com cartão)
   const renderSuccessStep = () => (
     <View style={styles.successContainer}>
       <Text style={styles.successIcon}>🎉</Text>
       <Text style={styles.successTitle}>Pedido Confirmado!</Text>
       <Text style={styles.successMessage}>
-        Seu pedido #{(Math.random() * 10000).toFixed(0)} foi recebido e está
-        sendo preparado.
+        Seu pedido #{orderNumber} foi recebido e está sendo preparado.
       </Text>
 
       <Text style={styles.successInfo}>
-        {paymentData.method === "pix"
-          ? "Verifique seu WhatsApp para realizar o pagamento PIX."
-          : "Pagamento via cartão processado com sucesso."}
+        Verifique a conversa no WhatsApp para acompanhar seu pedido.
       </Text>
 
       <TouchableOpacity
         style={styles.whatsappButton}
-        onPress={() => {
-          // Simular abertura do WhatsApp
-          const message = `Olá! Gostaria de acompanhar meu pedido #${(
-            Math.random() * 10000
-          ).toFixed(0)}`;
-          Alert.alert("WhatsApp", `Mensagem pronta: "${message}"`);
+        onPress={async () => {
+          // Reabrir WhatsApp
+          const orderDetails: OrderDetails = {
+            orderNumber,
+            items: [],
+            total: finalTotal,
+            deliveryData,
+            paymentMethod: paymentData.method,
+            deliveryFee,
+          };
+          await whatsappService.openWhatsAppWithOrder(orderDetails);
         }}
       >
-        <Text style={styles.whatsappButtonText}>Acompanhar no WhatsApp</Text>
+        <Text style={styles.whatsappButtonText}>📱 Ver Pedido no WhatsApp</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={styles.continueButton}
-        onPress={() => navigation.navigate("MainTabs")} // CORRIGIDO: navega para MainTabs
+        onPress={() => navigation.navigate("MainTabs")}
       >
-        <Text style={styles.continueButtonText}>Fazer Novo Pedido</Text>
+        <Text style={styles.continueButtonText}>🍝 Fazer Novo Pedido</Text>
       </TouchableOpacity>
     </View>
   );
@@ -424,7 +497,7 @@ const CheckoutScreen: React.FC = () => {
         {renderStepContent()}
       </ScrollView>
 
-      {currentStep !== "success" && (
+      {currentStep !== "success" && currentStep !== "review" && (
         <View style={styles.footer}>
           {currentStep !== "delivery" && (
             <TouchableOpacity
@@ -435,19 +508,33 @@ const CheckoutScreen: React.FC = () => {
             </TouchableOpacity>
           )}
 
+          <TouchableOpacity style={styles.nextButton} onPress={goToNextStep}>
+            <Text style={styles.nextButtonText}>Continuar</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {currentStep === "review" && (
+        <View style={styles.footer}>
           <TouchableOpacity
-            style={[
-              styles.nextButton,
-              (currentStep === "review" || isLoading) && styles.confirmButton,
-            ]}
-            onPress={currentStep === "review" ? handlePlaceOrder : goToNextStep}
+            style={styles.backButton}
+            onPress={goToPreviousStep}
+          >
+            <Text style={styles.backButtonText}>Voltar</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.nextButton, styles.confirmButton]}
+            onPress={handlePlaceOrder}
             disabled={isLoading}
           >
             {isLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.nextButtonText}>
-                {currentStep === "review" ? "Confirmar Pedido" : "Continuar"}
+                {paymentData.method === "pix"
+                  ? "Pagar com PIX"
+                  : "Confirmar Pedido"}
               </Text>
             )}
           </TouchableOpacity>

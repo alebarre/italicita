@@ -11,22 +11,13 @@ import CartScreen from "./src/screens/CartScreen";
 import OrdersScreen from "./src/screens/OrdersScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import CheckoutScreen from "./src/screens/CheckoutScreen";
+import PixPaymentScreen from "./src/screens/PixPaymentScreen";
 
 // Import do Context
 import { CartProvider } from "./src/contexts/CartContext";
 
-// Tipos para navegação
-export type RootTabParamList = {
-  Home: undefined;
-  Cart: undefined;
-  Orders: undefined;
-  Profile: undefined;
-};
-
-export type RootStackParamList = {
-  MainTabs: undefined;
-  Checkout: undefined;
-};
+// Import dos tipos
+import { RootTabParamList, RootStackParamList } from "./src/types";
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 const Stack = createStackNavigator<RootStackParamList>();
@@ -55,18 +46,6 @@ const MainTabs = () => {
         },
         tabBarActiveTintColor: "#e74c3c",
         tabBarInactiveTintColor: "gray",
-        tabBarStyle: {
-          backgroundColor: "#fff",
-          borderTopWidth: 1,
-          borderTopColor: "#e0e0e0",
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 4,
-        },
-        tabBarLabelStyle: {
-          fontSize: 13,
-          fontWeight: "600",
-        },
         headerStyle: {
           backgroundColor: "#e74c3c",
         },
@@ -79,14 +58,7 @@ const MainTabs = () => {
       <Tab.Screen
         name="Home"
         component={HomeScreen}
-        options={{
-          title: "Italicita Delivery",
-          headerTitleStyle: {
-            fontFamily: "arial",
-            fontWeight: "bold",
-            fontSize: 44,
-          },
-        }}
+        options={{ title: "Italicita Delivery" }}
       />
       <Tab.Screen
         name="Cart"
@@ -133,6 +105,14 @@ export default function App() {
             component={CheckoutScreen}
             options={{
               title: "Finalizar Pedido",
+              headerBackTitle: "Voltar",
+            }}
+          />
+          <Stack.Screen
+            name="PixPayment"
+            component={PixPaymentScreen}
+            options={{
+              title: "Pagamento PIX",
               headerBackTitle: "Voltar",
             }}
           />

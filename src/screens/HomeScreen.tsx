@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   View,
@@ -6,179 +6,345 @@ import {
   FlatList,
   TouchableOpacity,
   ScrollView,
+  Image,
 } from "react-native";
-import { MenuItem } from "../types";
+import { useNavigation } from "@react-navigation/native";
 import { useCart } from "../contexts/CartContext";
+import { MenuItem, ProductCategory } from "../types";
+import { menuItems } from "../data/mockData";
+import CustomizationModal from "../components/CustomizationModal";
 
 const HomeScreen: React.FC = () => {
-  const { state, addItem } = useCart();
+  const navigation = useNavigation();
+  const { state } = useCart();
+  const [selectedCategory, setSelectedCategory] =
+    useState<ProductCategory>("massas");
+  const [customizationModalVisible, setCustomizationModalVisible] =
+    useState(false);
+  const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(
+    null
+  );
 
-  const menuItems: MenuItem[] = [
-    {
-      id: 1,
-      name: "Fettuccine Alfredo",
-      description: "Massa fresca com molho cremoso de queijo parmesão",
-      price: 32.9,
-      category: "massas",
-    },
-    {
-      id: 2,
-      name: "Lasanha Bolonhesa",
-      description: "Camadas de massa com carne moída e molho de tomate",
-      price: 38.5,
-      category: "massas",
-    },
-    {
-      id: 3,
-      name: "Spaghetti Carbonara",
-      description: "Massa com bacon, ovos e queijo pecorino",
-      price: 35.9,
-      category: "massas",
-    },
-    {
-      id: 4,
-      name: "Pão de Alho",
-      description: "4 unidades",
-      price: 12.9,
-      category: "acompanhamentos",
-    },
-    {
-      id: 5,
-      name: "Salada Caesar",
-      description: "Alface, croutons e molho especial",
-      price: 18.9,
-      category: "acompanhamentos",
-    },
-    {
-      id: 6,
-      name: "Tiramisu",
-      description: "Sobremesa italiana clássica",
-      price: 16.9,
-      category: "sobremesas",
-    },
-    {
-      id: 7,
-      name: "Refrigerante 2L",
-      description: "Coca-Cola, Guaraná ou Fanta",
-      price: 10.9,
-      category: "bebidas",
-    },
+  // Categorias disponíveis
+  const categories: { id: ProductCategory; name: string; emoji: string }[] = [
+    { id: "massas", name: "Massas", emoji: "🍝" },
+    { id: "risotos", name: "Risotos", emoji: "🍚" },
+    { id: "carnes", name: "Carnes", emoji: "🥩" },
+    { id: "saladas", name: "Saladas", emoji: "🥗" },
+    { id: "sobremesas", name: "Sobremesas", emoji: "🍰" },
+    { id: "bebidas", name: "Bebidas", emoji: "🥤" },
+    { id: "acompanhamentos", name: "Acompanhamentos", emoji: "🍟" },
   ];
+
+  // Filtra itens por categoria
+  const filteredItems = menuItems.filter(
+    (item) => item.category === selectedCategory
+  );
+
+  const handleAddToCart = (menuItem: MenuItem) => {
+    setSelectedMenuItem(menuItem);
+    setCustomizationModalVisible(true);
+  };
+
+  const handleCustomizationComplete = (cartItem: any) => {
+    // Esta função será chamada pelo modal quando o usuário finalizar a customização
+    // O cartItem já vem com todas as customizações e preço calculado
+    console.log("Item customizado adicionado:", cartItem);
+    setCustomizationModalVisible(false);
+    setSelectedMenuItem(null);
+  };
+
+  const renderCategoryItem = ({ item }: { item: (typeof categories)[0] }) => (
+    <TouchableOpacity
+      style={[
+        styles.categoryItem,
+        selectedCategory === item.id && styles.categoryItemActive,
+      ]}
+      onPress={() => setSelectedCategory(item.id)}
+    >
+      <Text style={styles.categoryEmoji}>{item.emoji}</Text>
+      <Text
+        style={[
+          styles.categoryName,
+          selectedCategory === item.id && styles.categoryNameActive,
+        ]}
+      >
+        {item.name}
+      </Text>
+    </TouchableOpacity>
+  );
 
   const renderMenuItem = ({ item }: { item: MenuItem }) => (
     <View style={styles.menuItem}>
+      {/* Imagem do prato */}
+      <View style={styles.imagePlaceholder}>
+        <Text style={styles.imagePlaceholderText}>📷</Text>
+      </View>
+
       <View style={styles.itemInfo}>
         <Text style={styles.itemName}>{item.name}</Text>
         <Text style={styles.itemDescription}>{item.description}</Text>
-        <Text style={styles.itemPrice}>R$ {item.price.toFixed(2)}</Text>
+
+        {/* Tags */}
+        {item.tags && item.tags.length > 0 && (
+          <View style={styles.tagsContainer}>
+            {item.tags.map((tag, index) => (
+              <View key={index} style={styles.tag}>
+                <Text style={styles.tagText}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Informações de personalização disponível */}
+        <View style={styles.customizationInfo}>
+          {item.allowedPasta && item.allowedPasta.length > 0 && (
+            <Text style={styles.customizationText}>⚙️ Escolha a massa</Text>
+          )}
+          {item.allowedSauces && item.allowedSauces.length > 0 && (
+            <Text style={styles.customizationText}>🥫 Molhos disponíveis</Text>
+          )}
+          {item.allowedAddOns && item.allowedAddOns.length > 0 && (
+            <Text style={styles.customizationText}>
+              🍗 Adicionais opcionais
+            </Text>
+          )}
+          <Text style={styles.customizationText}>
+            📏 Tamanhos: {item.allowedSizes.map((s) => s.name).join(", ")}
+          </Text>
+        </View>
+
+        <View style={styles.itemFooter}>
+          <Text style={styles.itemPrice}>
+            A partir de R$ {item.basePrice.toFixed(2)}
+          </Text>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => handleAddToCart(item)}
+          >
+            <Text style={styles.addButtonText}>Personalizar</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      <TouchableOpacity style={styles.addButton} onPress={() => addItem(item)}>
-        <Text style={styles.addButtonText}>+</Text>
-      </TouchableOpacity>
     </View>
   );
 
-  const getItemsByCategory = (category: MenuItem["category"]) => {
-    return menuItems.filter((item) => item.category === category);
-  };
-
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.menuContainer}>
-        <Text style={styles.sectionTitle}>🍝 Massas Especiais</Text>
-        <FlatList
-          data={getItemsByCategory("massas")}
-          renderItem={renderMenuItem}
-          keyExtractor={(item) => item.id.toString()}
-          scrollEnabled={false}
-        />
+      {/* Header com carrinho */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>🍝 Italicita Delivery</Text>
+        <TouchableOpacity
+          style={styles.cartButton}
+          onPress={() => navigation.navigate("Cart" as never)}
+        >
+          <Text style={styles.cartIcon}>🛒</Text>
+          {state.itemCount > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{state.itemCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
 
-        <Text style={styles.sectionTitle}>🥗 Acompanhamentos</Text>
+      {/* Categorias */}
+      <View style={styles.categoriesContainer}>
         <FlatList
-          data={getItemsByCategory("acompanhamentos")}
-          renderItem={renderMenuItem}
-          keyExtractor={(item) => item.id.toString()}
-          scrollEnabled={false}
+          data={categories}
+          renderItem={renderCategoryItem}
+          keyExtractor={(item) => item.id}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoriesList}
         />
+      </View>
 
-        <Text style={styles.sectionTitle}>🍰 Sobremesas</Text>
-        <FlatList
-          data={getItemsByCategory("sobremesas")}
-          renderItem={renderMenuItem}
-          keyExtractor={(item) => item.id.toString()}
-          scrollEnabled={false}
-        />
+      {/* Lista de Itens */}
+      <View style={styles.menuContainer}>
+        {filteredItems.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateEmoji}>🍽️</Text>
+            <Text style={styles.emptyStateText}>
+              Nenhum item encontrado nesta categoria
+            </Text>
+            <Text style={styles.emptyStateSubtext}>
+              Em breve teremos novidades!
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredItems}
+            renderItem={renderMenuItem}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.menuList}
+          />
+        )}
+      </View>
 
-        <Text style={styles.sectionTitle}>🥤 Bebidas</Text>
-        <FlatList
-          data={getItemsByCategory("bebidas")}
-          renderItem={renderMenuItem}
-          keyExtractor={(item) => item.id.toString()}
-          scrollEnabled={false}
-        />
-      </ScrollView>
-
-      {state.itemCount > 0 && (
-        <View style={styles.cartSummary}>
-          <Text style={styles.cartText}>
-            {state.itemCount} {state.itemCount === 1 ? "item" : "itens"} no
-            carrinho
-          </Text>
-          <Text style={styles.cartTotal}>
-            Total: R$ {state.total.toFixed(2)}
-          </Text>
-        </View>
-      )}
+      {/* Modal de Customização */}
+      <CustomizationModal
+        visible={customizationModalVisible}
+        menuItem={selectedMenuItem}
+        onClose={() => {
+          setCustomizationModalVisible(false);
+          setSelectedMenuItem(null);
+        }}
+        onAddToCart={handleCustomizationComplete}
+      />
     </View>
   );
 };
 
-// Mesmos styles do anterior
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
   },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#e74c3c",
+    paddingHorizontal: 15,
+    paddingVertical: 20,
+    paddingTop: 50, // Para status bar
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "white",
+  },
+  cartButton: {
+    position: "relative",
+    padding: 8,
+  },
+  cartIcon: {
+    fontSize: 20,
+    color: "white",
+  },
+  cartBadge: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: "#2ecc71",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cartBadgeText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  categoriesContainer: {
+    backgroundColor: "white",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  categoriesList: {
+    paddingHorizontal: 15,
+  },
+  categoryItem: {
+    alignItems: "center",
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    marginRight: 10,
+    borderRadius: 20,
+    backgroundColor: "#f8f9fa",
+    minWidth: 80,
+  },
+  categoryItemActive: {
+    backgroundColor: "#e74c3c",
+  },
+  categoryEmoji: {
+    fontSize: 20,
+    marginBottom: 4,
+  },
+  categoryName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#666",
+  },
+  categoryNameActive: {
+    color: "white",
+  },
   menuContainer: {
     flex: 1,
     padding: 15,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginTop: 20,
-    marginBottom: 10,
-    color: "#333",
-    borderBottomWidth: 2,
-    borderBottomColor: "#f39c12",
-    paddingBottom: 5,
+  menuList: {
+    paddingBottom: 20,
   },
   menuItem: {
     backgroundColor: "white",
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    borderRadius: 12,
+    marginBottom: 15,
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
+  imagePlaceholder: {
+    height: 120,
+    backgroundColor: "#f8f9fa",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imagePlaceholderText: {
+    fontSize: 40,
+    color: "#ccc",
+  },
   itemInfo: {
-    flex: 1,
+    padding: 15,
   },
   itemName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "bold",
     marginBottom: 5,
+    color: "#333",
   },
   itemDescription: {
     fontSize: 14,
     color: "#666",
-    marginBottom: 5,
+    marginBottom: 10,
+    lineHeight: 20,
+  },
+  tagsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginBottom: 10,
+    gap: 5,
+  },
+  tag: {
+    backgroundColor: "#e8f4fd",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  tagText: {
+    fontSize: 10,
+    color: "#3498db",
+    fontWeight: "600",
+    textTransform: "lowercase",
+  },
+  customizationInfo: {
+    marginBottom: 15,
+  },
+  customizationText: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 2,
+  },
+  itemFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   itemPrice: {
     fontSize: 16,
@@ -187,34 +353,36 @@ const styles = StyleSheet.create({
   },
   addButton: {
     backgroundColor: "#e74c3c",
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
   },
   addButtonText: {
     color: "white",
-    fontSize: 20,
+    fontSize: 14,
     fontWeight: "bold",
   },
-  cartSummary: {
-    backgroundColor: "white",
-    padding: 15,
-    borderTopWidth: 1,
-    borderTopColor: "#ddd",
-    flexDirection: "row",
-    justifyContent: "space-between",
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
+    padding: 40,
   },
-  cartText: {
+  emptyStateEmoji: {
+    fontSize: 50,
+    marginBottom: 15,
+  },
+  emptyStateText: {
     fontSize: 16,
-    color: "#333",
+    fontWeight: "600",
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 5,
   },
-  cartTotal: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#e74c3c",
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: "#999",
+    textAlign: "center",
   },
 });
 
