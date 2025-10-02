@@ -18,8 +18,9 @@ import { whatsappService, OrderDetails } from "../services/whatsappService";
 type CheckoutStep = "delivery" | "payment" | "review" | "success";
 
 const CheckoutScreen: React.FC = () => {
+  console.log("✅ CheckoutScreen carregado");
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
-  const { state, clearCart } = useCart();
+  const { state, createOrder } = useCart();
   const [currentStep, setCurrentStep] = useState<CheckoutStep>("delivery");
   const [isLoading, setIsLoading] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
@@ -108,46 +109,67 @@ const CheckoutScreen: React.FC = () => {
     return `IT${timestamp}${random}`;
   };
 
+  const proceedToCheckout = () => {
+    if (state.items.length === 0) {
+      Alert.alert(
+        "Carrinho vazio",
+        "Adicione itens ao carrinho antes de finalizar o pedido."
+      );
+      return;
+    }
+
+    // ✅ CORREÇÃO: Navegar para Checkout em vez de PIX direto
+    (navigation as any).navigate("Checkout");
+  };
+
   // Processar pagamento com cartão (fluxo WhatsApp)
-  // Processar pagamento com cartão (fluxo WhatsApp) - CORRIGIDO
   const processCardPayment = async () => {
     setIsLoading(true);
 
     try {
-      // Gerar número do pedido
-      const newOrderNumber = generateOrderNumber();
-      setOrderNumber(newOrderNumber);
+      // ✅ 1. VALIDAR DADOS ANTES DE CRIAR PEDIDO
+      if (!validateDeliveryData()) {
+        setIsLoading(false);
+        return;
+      }
 
-      // Criar detalhes do pedido
+      // ✅ 2. CRIAR PEDIDO NO BACKEND (igual ao PIX)
+      const order = await createOrder({
+        paymentMethod: "card",
+        deliveryData,
+      });
+
+      console.log("✅ Pedido Cartão criado:", order.id);
+
+      // ✅ 3. GERAR DADOS DO PEDIDO PARA WHATSAPP
       const orderDetails: OrderDetails = {
-        orderNumber: newOrderNumber,
-        items: state.items, // ✅ Usa os itens atuais do carrinho
+        orderNumber: order.id, // ✅ Usar ID real do backend
+        items: state.items,
         total: finalTotal,
         deliveryData,
-        paymentMethod: paymentData.method,
+        paymentMethod: "card",
         deliveryFee,
       };
 
-      // Simular processamento
+      // ✅ 4. SIMULAR PROCESSAMENTO
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      // Abrir WhatsApp com detalhes do pedido
+      // ✅ 5. ABRIR WHATSAPP
       const whatsappSuccess = await whatsappService.openWhatsAppWithOrder(
         orderDetails
       );
 
       if (whatsappSuccess) {
-        // ✅ SÓ AQUI limpa o carrinho - após sucesso no WhatsApp
-        clearCart();
+        // ✅ Carrinho já foi limpo pelo createOrder no CartContext
+        setOrderNumber(order.id);
         setCurrentStep("success");
       } else {
         Alert.alert(
           "Pedido Confirmado",
-          `Seu pedido ${newOrderNumber} foi recebido, mas não foi possível abrir o WhatsApp. Entre em contato pelo telefone (11) 9999-9999.`,
+          `Seu pedido #${order.id} foi recebido, mas não foi possível abrir o WhatsApp. Entre em contato pelo telefone (11) 9999-9999.`,
           [{ text: "OK" }]
         );
-        // ✅ SÓ AQUI limpa o carrinho - mesmo sem WhatsApp
-        clearCart();
+        setOrderNumber(order.id);
         setCurrentStep("success");
       }
     } catch (error) {
@@ -162,19 +184,65 @@ const CheckoutScreen: React.FC = () => {
   };
 
   // Processar pagamento com PIX
-  // No CheckoutScreen.tsx, modifique a navegação para PIX:
-  const processPixPayment = () => {
-    const orderNumber = generateOrderNumber();
-    setOrderNumber(orderNumber);
+  const processPixPayment = async () => {
+    setIsLoading(true);
 
-    // Navegar para tela de pagamento PIX passando clearCart
-    navigation.navigate("PixPayment", {
-      orderId: orderNumber,
-      amount: finalTotal,
-      deliveryData,
-      items: state.items,
-      clearCart: clearCart, // ✅ Passa a função para limpar carrinho
-    });
+    try {
+      // ✅ 1. VALIDAR DADOS ANTES DE CRIAR PEDIDO
+      if (!validateDeliveryData()) {
+        setIsLoading(false);
+        return;
+      }
+
+      // ✅ 2. CRIAR PEDIDO NO BACKEND usando createOrder do CartContext
+      const order = await createOrder({
+        paymentMethod: "pix",
+        deliveryData,
+      });
+
+      console.log("✅ Pedido PIX criado:", order.id);
+
+      // ✅ 3. GERAR DADOS DO PEDIDO PARA WHATSAPP
+      const orderDetails: OrderDetails = {
+        orderNumber: order.id, // ✅ Usar ID real do backend
+        items: state.items,
+        total: finalTotal,
+        deliveryData,
+        paymentMethod: "pix",
+        deliveryFee,
+      };
+
+      // ✅ 4. SIMULAR PROCESSAMENTO PIX (opcional - pode remover)
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // ✅ 5. ABRIR WHATSAPP COM DETALHES DO PEDIDO PIX
+      const whatsappSuccess = await whatsappService.openWhatsAppWithOrder(
+        orderDetails
+      );
+
+      // ✅ 6. TRATAR RESULTADO
+      if (whatsappSuccess) {
+        // ✅ Carrinho já foi limpo pelo createOrder no CartContext
+        setOrderNumber(order.id);
+        setCurrentStep("success");
+      } else {
+        Alert.alert(
+          "Pedido Confirmado - PIX",
+          `Seu pedido PIX #${order.id} foi recebido, mas não foi possível abrir o WhatsApp. Entre em contato pelo telefone (11) 9999-9999.`,
+          [{ text: "OK" }]
+        );
+        setOrderNumber(order.id);
+        setCurrentStep("success");
+      }
+    } catch (error) {
+      console.error("Error creating PIX order:", error);
+      Alert.alert(
+        "Erro no PIX",
+        "Não foi possível processar seu pedido PIX. Tente novamente."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Finalizar pedido
@@ -419,12 +487,17 @@ const CheckoutScreen: React.FC = () => {
     <View style={styles.successContainer}>
       <Text style={styles.successIcon}>🎉</Text>
       <Text style={styles.successTitle}>Pedido Confirmado!</Text>
+
       <Text style={styles.successMessage}>
-        Seu pedido #{orderNumber} foi recebido e está sendo preparado.
+        {paymentData.method === "pix"
+          ? `Seu pedido PIX #${orderNumber} foi recebido e está sendo preparado.`
+          : `Seu pedido #${orderNumber} foi recebido e está sendo preparado.`}
       </Text>
 
       <Text style={styles.successInfo}>
-        Verifique a conversa no WhatsApp para acompanhar seu pedido.
+        {paymentData.method === "pix"
+          ? "Verifique a conversa no WhatsApp para acompanhar seu pedido PIX."
+          : "Verifique a conversa no WhatsApp para acompanhar seu pedido."}
       </Text>
 
       <TouchableOpacity
@@ -433,7 +506,7 @@ const CheckoutScreen: React.FC = () => {
           // Reabrir WhatsApp
           const orderDetails: OrderDetails = {
             orderNumber,
-            items: [],
+            items: state.items,
             total: finalTotal,
             deliveryData,
             paymentMethod: paymentData.method,
@@ -442,7 +515,11 @@ const CheckoutScreen: React.FC = () => {
           await whatsappService.openWhatsAppWithOrder(orderDetails);
         }}
       >
-        <Text style={styles.whatsappButtonText}>📱 Ver Pedido no WhatsApp</Text>
+        <Text style={styles.whatsappButtonText}>
+          {paymentData.method === "pix"
+            ? "📱 Ver Pedido PIX no WhatsApp"
+            : "📱 Ver Pedido no WhatsApp"}
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity

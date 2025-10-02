@@ -1,17 +1,19 @@
-import React, { useState } from "react";
+// src/screens/HomeScreen.tsx
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
   Text,
   FlatList,
   TouchableOpacity,
-  ScrollView,
   Image,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useCart } from "../contexts/CartContext";
 import { MenuItem, ProductCategory } from "../types";
-import { menuItems } from "../data/mockData";
+import { apiService } from "../services/apiService";
 import CustomizationModal from "../components/CustomizationModal";
 
 const HomeScreen: React.FC = () => {
@@ -25,6 +27,12 @@ const HomeScreen: React.FC = () => {
     null
   );
 
+  // Estados para API
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
   // Categorias disponíveis
   const categories: { id: ProductCategory; name: string; emoji: string }[] = [
     { id: "massas", name: "Massas", emoji: "🍝" },
@@ -35,6 +43,31 @@ const HomeScreen: React.FC = () => {
     { id: "bebidas", name: "Bebidas", emoji: "🥤" },
     { id: "acompanhamentos", name: "Acompanhamentos", emoji: "🍟" },
   ];
+
+  // Carregar produtos da API
+  const loadProducts = async (isRefreshing = false) => {
+    try {
+      if (!isRefreshing) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
+      setError(null);
+
+      const products = await apiService.getProducts();
+      setMenuItems(products);
+    } catch (err) {
+      console.error("Error loading products:", err);
+      setError("Erro ao carregar o menu. Tente novamente.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
 
   // Filtra itens por categoria
   const filteredItems = menuItems.filter(
@@ -47,11 +80,13 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleCustomizationComplete = (cartItem: any) => {
-    // Esta função será chamada pelo modal quando o usuário finalizar a customização
-    // O cartItem já vem com todas as customizações e preço calculado
-    console.log("Item customizado adicionado:", cartItem);
+    "Item customizado adicionado:", cartItem;
     setCustomizationModalVisible(false);
     setSelectedMenuItem(null);
+  };
+
+  const handleRefresh = () => {
+    loadProducts(true);
   };
 
   const renderCategoryItem = ({ item }: { item: (typeof categories)[0] }) => (
@@ -77,8 +112,21 @@ const HomeScreen: React.FC = () => {
   const renderMenuItem = ({ item }: { item: MenuItem }) => (
     <View style={styles.menuItem}>
       {/* Imagem do prato */}
-      <View style={styles.imagePlaceholder}>
-        <Text style={styles.imagePlaceholderText}>📷</Text>
+      <View style={styles.imageContainer}>
+        {item.images &&
+        item.images.length > 0 &&
+        typeof item.images[0] === "string" ? (
+          <Image
+            source={{ uri: item.images[0] }}
+            style={styles.itemImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <Text style={styles.imagePlaceholderText}>📷</Text>
+            <Text style={styles.imagePlaceholderSubtext}>Imagem do prato</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.itemInfo}>
@@ -110,7 +158,7 @@ const HomeScreen: React.FC = () => {
             </Text>
           )}
           <Text style={styles.customizationText}>
-            📏 Tamanhos: {item.allowedSizes.map((s) => s.name).join(", ")}
+            📏 Tamanhos: {item.allowedSizes?.map((s: any) => s.name).join(", ")}
           </Text>
         </View>
 
@@ -128,6 +176,67 @@ const HomeScreen: React.FC = () => {
       </View>
     </View>
   );
+
+  // Loading State
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>🍝 Italicita Delivery</Text>
+          <TouchableOpacity
+            style={styles.cartButton}
+            onPress={() => navigation.navigate("Cart" as never)}
+          >
+            <Text style={styles.cartIcon}>🛒</Text>
+            {state.itemCount > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{state.itemCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#e74c3c" />
+          <Text style={styles.loadingText}>Carregando menu...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Error State
+  if (error && menuItems.length === 0) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>🍝 Italicita Delivery</Text>
+          <TouchableOpacity
+            style={styles.cartButton}
+            onPress={() => navigation.navigate("Cart" as never)}
+          >
+            <Text style={styles.cartIcon}>🛒</Text>
+            {state.itemCount > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{state.itemCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorEmoji}>😕</Text>
+          <Text style={styles.errorTitle}>Ops! Algo deu errado</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => loadProducts()}
+          >
+            <Text style={styles.retryButtonText}>Tentar Novamente</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -178,6 +287,14 @@ const HomeScreen: React.FC = () => {
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.menuList}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={["#e74c3c"]}
+                tintColor="#e74c3c"
+              />
+            }
           />
         )}
       </View>
@@ -291,7 +408,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   imageContainer: {
-    height: 160, // Aumentei um pouco para melhor visualização
+    height: 160,
     overflow: "hidden",
   },
   itemImage: {
@@ -299,7 +416,7 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   imagePlaceholder: {
-    height: 120,
+    height: 160,
     backgroundColor: "#f8f9fa",
     justifyContent: "center",
     alignItems: "center",
@@ -307,6 +424,11 @@ const styles = StyleSheet.create({
   imagePlaceholderText: {
     fontSize: 40,
     color: "#ccc",
+    marginBottom: 5,
+  },
+  imagePlaceholderSubtext: {
+    fontSize: 12,
+    color: "#999",
   },
   itemInfo: {
     padding: 15,
@@ -391,6 +513,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#999",
     textAlign: "center",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#666",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    backgroundColor: "#f5f5f5",
+  },
+  errorEmoji: {
+    fontSize: 50,
+    marginBottom: 15,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 10,
+  },
+  errorText: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  retryButton: {
+    backgroundColor: "#e74c3c",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });
 

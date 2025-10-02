@@ -125,21 +125,21 @@ export const calculateItemPrice = (item: Omit<CartItem, 'id' | 'finalPrice'>): n
     }
 
     // Adiciona ajuste do tamanho
-    price += item.selectedSize.priceAdjustment;
+    price += item.selectedSize.priceAdjustment || 0;
 
     // Adiciona preço do molho (se houver)
     if (item.selectedSauce) {
-        price += item.selectedSauce.price;
+        price += item.selectedSauce.price || 0;
     }
 
     // Adiciona preços dos adicionais
     item.selectedAddOns.forEach(addOn => {
-        price += addOn.price;
+        price += addOn.price || 0;
     });
 
     // Adiciona preços dos extras
     item.selectedExtras.forEach(extra => {
-        price += extra.price;
+        price += extra.price || 0;
     });
 
     return price;

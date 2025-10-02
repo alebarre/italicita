@@ -7,14 +7,24 @@ import {
   ScrollView,
   FlatList,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useCart } from "../contexts/CartContext";
-import { CartItem } from "../types";
+import { CartItem, DeliveryData } from "../types";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { RootStackParamList } from "../types";
+
+type CartScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  "PixPayment"
+>;
 
 const CartScreen: React.FC = () => {
-  const navigation = useNavigation();
-  const { state, updateQuantity, removeItem, clearCart } = useCart();
+  const navigation = useNavigation<CartScreenNavigationProp>();
+  const { state, updateQuantity, removeItem, clearCart, createOrder } =
+    useCart();
+  const [loading, setLoading] = React.useState(false);
 
   const updateItemQuantity = (id: string, change: number) => {
     const item = state.items.find((item) => item.id === id);
@@ -180,7 +190,10 @@ const CartScreen: React.FC = () => {
       return;
     }
 
-    navigation.navigate("Checkout" as never);
+    ("🛒 Navegando para Checkout..."); // Para debug
+
+    // Navegar para Checkout (escolha de pagamento)
+    (navigation as any).navigate("Checkout");
   };
 
   if (state.items.length === 0) {
@@ -258,12 +271,20 @@ const CartScreen: React.FC = () => {
       </ScrollView>
 
       <TouchableOpacity
-        style={styles.checkoutButton}
+        style={[
+          styles.checkoutButton,
+          loading && styles.checkoutButtonDisabled,
+        ]}
         onPress={proceedToCheckout}
+        disabled={loading}
       >
-        <Text style={styles.checkoutButtonText}>
-          Finalizar Pedido - R$ {finalTotal.toFixed(2)}
-        </Text>
+        {loading ? (
+          <ActivityIndicator color="white" size="small" />
+        ) : (
+          <Text style={styles.checkoutButtonText}>
+            Finalizar Pedido - R$ {finalTotal.toFixed(2)}
+          </Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -468,6 +489,9 @@ const styles = StyleSheet.create({
     margin: 15,
     borderRadius: 8,
     alignItems: "center",
+  },
+  checkoutButtonDisabled: {
+    backgroundColor: "#ccc",
   },
   checkoutButtonText: {
     color: "white",

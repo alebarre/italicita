@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useReducer, ReactNode } from "react";
-import { CartItem, MenuItem, calculateItemPrice } from "../types";
+import {
+  CartItem,
+  MenuItem,
+  calculateItemPrice,
+  Order,
+  DeliveryData,
+} from "../types";
+import { apiService } from "../services/apiService";
 
 // Estado do carrinho
 interface CartState {
@@ -8,7 +15,7 @@ interface CartState {
   itemCount: number;
 }
 
-// Ações disponíveis - ATUALIZADA
+// Ações disponíveis
 type CartAction =
   | {
       type: "ADD_ITEM";
@@ -24,7 +31,7 @@ type CartAction =
   | { type: "UPDATE_QUANTITY"; payload: { id: string; quantity: number } }
   | { type: "CLEAR_CART" };
 
-// Context com estado e funções - ATUALIZADA
+// Context com estado e funções
 interface CartContextData {
   state: CartState;
   addItem: (
@@ -37,6 +44,10 @@ interface CartContextData {
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
+  createOrder: (orderData: {
+    paymentMethod: "card" | "pix";
+    deliveryData: DeliveryData;
+  }) => Promise<Order>;
 }
 
 // Criar Context
@@ -63,7 +74,7 @@ const generateItemId = (menuItemId: string, customizations: any): string => {
   return `${menuItemId}-${Math.abs(hash).toString(36).substring(0, 8)}`;
 };
 
-// Reducer para gerenciar estado - ATUALIZADA
+// Reducer para gerenciar estado
 const cartReducer = (state: CartState, action: CartAction): CartState => {
   console.log(
     "Cart Action:",
@@ -199,6 +210,41 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     dispatch({ type: "CLEAR_CART" });
   };
 
+  // ✅ FUNÇÃO PARA CRIAR PEDIDO NO BACKEND
+  const createOrder = async (orderData: {
+    paymentMethod: "card" | "pix";
+    deliveryData: DeliveryData;
+  }): Promise<Order> => {
+    try {
+      console.log("🛒 Creating order with data:", {
+        items: state.items,
+        total: state.total,
+        ...orderData,
+      });
+
+      const order = await apiService.createOrder({
+        userId: "user-demo-1", // ✅ Usar ID que existe no banco
+        items: state.items,
+        total: state.total + 5.0, // + taxa de entrega
+        paymentMethod: orderData.paymentMethod,
+        deliveryData: orderData.deliveryData,
+      });
+
+      console.log("🛒 Order created successfully:", order);
+
+      return order;
+    } catch (error) {
+      console.error("🛒 Error creating order:", error);
+
+      // ✅ MELHOR TRATAMENTO DE ERRO
+      if (error instanceof Error) {
+        throw new Error(`Falha ao criar pedido: ${error.message}`);
+      } else {
+        throw new Error("Erro desconhecido ao criar pedido");
+      }
+    }
+  };
+
   console.log("🛒 Current cart state:", state);
 
   return (
@@ -209,6 +255,7 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
         removeItem,
         updateQuantity,
         clearCart,
+        createOrder, // ✅ Exportar a função
       }}
     >
       {children}
