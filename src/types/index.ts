@@ -180,3 +180,20 @@ export interface DeliveryData {
     phone: string;
     complement?: string;
 }
+
+export interface MenuItem {
+    id: string;
+    name: string;
+    description: string;
+    category: ProductCategory;
+    basePrice: number;
+    images: string[]; // ✅ Nomes dos arquivos como "carbonara.jpg", "alfredo.jpg"
+    isAvailable: boolean;
+    preparationTime: number;
+    tags: string[];
+    allowedPasta?: PastaOption[];
+    allowedSizes: SizeOption[];
+    allowedSauces?: SauceOption[];
+    allowedAddOns?: AddOnOption[];
+    allowedExtras?: ExtraOption[];
+}

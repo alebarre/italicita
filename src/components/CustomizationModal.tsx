@@ -7,8 +7,9 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
+  Image,
 } from "react-native";
-import { useCart } from "..//contexts/CartContext";
+import { useCart } from "../contexts/CartContext";
 import {
   MenuItem,
   PastaOption,
@@ -18,7 +19,8 @@ import {
   ExtraOption,
   CartItem,
   calculateItemPrice,
-} from "..//types";
+} from "../types";
+import { getProductImage } from "../utils/imageLoader";
 
 interface CustomizationModalProps {
   visible: boolean;
@@ -40,7 +42,6 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
   const [selectedAddOns, setSelectedAddOns] = useState<AddOnOption[]>([]);
   const [selectedExtras, setSelectedExtras] = useState<ExtraOption[]>([]);
 
-  // Fallback completo interface SizeOption
   const defaultSizeFallback: SizeOption = {
     id: "size-default",
     name: "Junior",
@@ -50,10 +51,8 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
     isAvailable: true,
   };
 
-  // Reset selections quando o modal abre com um novo item
   useEffect(() => {
     if (menuItem && visible) {
-      // ✅ CORRETO: Fallback com tipo completo
       const defaultSize =
         menuItem.allowedSizes && menuItem.allowedSizes.length > 0
           ? menuItem.allowedSizes[0]
@@ -61,7 +60,6 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
 
       setSelectedSize(defaultSize);
 
-      // ✅ Para massa também, se necessário
       const defaultPastaFallback: PastaOption = {
         id: "pasta-default",
         name: "Massa Tradicional",
@@ -75,16 +73,10 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
         setSelectedPasta(menuItem.allowedPasta[0]);
       }
 
-      // Limpar outras seleções
       setSelectedSauce(undefined);
       setSelectedAddOns([]);
       setSelectedExtras([]);
     }
-    console.log("🔍 CustomizationModal - basePrice:", menuItem?.basePrice);
-    console.log(
-      "🔍 CustomizationModal - allowedSizes:",
-      menuItem?.allowedSizes
-    );
   }, [menuItem, visible]);
 
   const handleAddToCart = () => {
@@ -98,7 +90,6 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
       return;
     }
 
-    // Verifica se precisa selecionar massa e não selecionou
     if (
       menuItem.allowedPasta &&
       menuItem.allowedPasta.length > 0 &&
@@ -108,7 +99,6 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
       return;
     }
 
-    // Prepara as customizações
     const customizations = {
       selectedPasta,
       selectedSize,
@@ -117,7 +107,6 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
       selectedExtras,
     };
 
-    // Usa a função addItem do context
     addItem(menuItem, customizations);
 
     Alert.alert("Sucesso!", "Item adicionado ao carrinho!", [
@@ -168,14 +157,7 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
     renderOption: (option: any, isSelected: boolean) => React.ReactNode
   ) => {
     if (!options || options.length === 0) return null;
-    console.log(
-      `🔍 ${title}:`,
-      options.map((opt) => ({
-        name: opt.name,
-        isAvailable: opt.isAvailable,
-        id: opt.id,
-      }))
-    );
+
     return (
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{title}</Text>
@@ -217,7 +199,6 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Personalizar {menuItem.name}</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -226,7 +207,15 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
         </View>
 
         <ScrollView style={styles.content}>
-          {/* Informações do Prato */}
+          {/* ✅ IMAGEM DO PRODUTO */}
+          <View style={styles.imageSection}>
+            <Image
+              source={getProductImage(menuItem.images[0])}
+              style={styles.productImage}
+              resizeMode="cover"
+            />
+          </View>
+
           <View style={styles.itemInfo}>
             <Text style={styles.itemName}>{menuItem.name}</Text>
             <Text style={styles.itemDescription}>{menuItem.description}</Text>
@@ -235,10 +224,9 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
             </Text>
           </View>
 
-          {/* Seção de Massas */}
           {renderOptionSection(
             "🍝 Escolha a Massa",
-            menuItem.allowedPasta || [], // Fallback array vazio
+            menuItem.allowedPasta || [],
             selectedPasta,
             setSelectedPasta,
             false,
@@ -263,10 +251,9 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
             )
           )}
 
-          {/* Seção de Tamanhos */}
           {renderOptionSection(
             "📏 Escolha o Tamanho",
-            menuItem.allowedSizes || [], //Fallback array vazio
+            menuItem.allowedSizes || [],
             selectedSize,
             setSelectedSize,
             false,
@@ -289,7 +276,6 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
             )
           )}
 
-          {/* Seção de Molhos */}
           {renderOptionSection(
             "🥫 Escolha o Molho",
             menuItem.allowedSauces || [],
@@ -315,7 +301,6 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
             )
           )}
 
-          {/* Seção de Adicionais */}
           {renderOptionSection(
             "🍗 Adicionais",
             menuItem.allowedAddOns || [],
@@ -341,7 +326,6 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
             )
           )}
 
-          {/* Seção de Extras */}
           {renderOptionSection(
             "🧀 Extras",
             menuItem.allowedExtras || [],
@@ -367,7 +351,6 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
           )}
         </ScrollView>
 
-        {/* Footer com preço e botão */}
         <View style={styles.footer}>
           <View style={styles.priceContainer}>
             <Text style={styles.totalLabel}>Total:</Text>
@@ -415,6 +398,16 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 15,
   },
+  imageSection: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  productImage: {
+    width: "100%",
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: "#f0f0f0",
+  },
   itemInfo: {
     backgroundColor: "white",
     padding: 15,
@@ -426,17 +419,20 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#333",
     marginBottom: 5,
+    textAlign: "center",
   },
   itemDescription: {
     fontSize: 14,
     color: "#666",
     marginBottom: 10,
     lineHeight: 20,
+    textAlign: "center",
   },
   basePrice: {
     fontSize: 16,
     fontWeight: "600",
     color: "#e74c3c",
+    textAlign: "center",
   },
   section: {
     marginBottom: 25,

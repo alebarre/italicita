@@ -1,323 +1,188 @@
-// src/screens/HomeScreen.tsx
 import React, { useState, useEffect } from "react";
 import {
-  StyleSheet,
   View,
   Text,
+  StyleSheet,
   FlatList,
-  TouchableOpacity,
   Image,
+  TouchableOpacity,
   ActivityIndicator,
-  RefreshControl,
+  Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
 import { useCart } from "../contexts/CartContext";
-import { MenuItem, ProductCategory } from "../types";
+import { MenuItem, RootStackParamList } from "../types";
 import { apiService } from "../services/apiService";
-import CustomizationModal from "../components/CustomizationModal";
+import { getProductImage } from "../utils/imageLoader";
+
+// ✅ CATEGORIAS DISPONÍVEIS
+const CATEGORIES: { key: string; label: string; emoji: string }[] = [
+  { key: "all", label: "Todos", emoji: "🍽️" },
+  { key: "massas", label: "Massas", emoji: "🍝" },
+  { key: "risotos", label: "Risotos", emoji: "🍚" },
+  { key: "carnes", label: "Carnes", emoji: "🥩" },
+  { key: "saladas", label: "Saladas", emoji: "🥗" },
+  { key: "sobremesas", label: "Sobremesas", emoji: "🍰" },
+  { key: "bebidas", label: "Bebidas", emoji: "🥤" },
+];
 
 const HomeScreen: React.FC = () => {
-  const navigation = useNavigation();
-  const { state } = useCart();
-  const [selectedCategory, setSelectedCategory] =
-    useState<ProductCategory>("massas");
-  const [customizationModalVisible, setCustomizationModalVisible] =
-    useState(false);
-  const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(
-    null
-  );
-
-  // Estados para API
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const { addItem, state } = useCart();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+  const [products, setProducts] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-
-  // Categorias disponíveis
-  const categories: { id: ProductCategory; name: string; emoji: string }[] = [
-    { id: "massas", name: "Massas", emoji: "🍝" },
-    { id: "risotos", name: "Risotos", emoji: "🍚" },
-    { id: "carnes", name: "Carnes", emoji: "🥩" },
-    { id: "saladas", name: "Saladas", emoji: "🥗" },
-    { id: "sobremesas", name: "Sobremesas", emoji: "🍰" },
-    { id: "bebidas", name: "Bebidas", emoji: "🥤" },
-    { id: "acompanhamentos", name: "Acompanhamentos", emoji: "🍟" },
-  ];
-
-  // Carregar produtos da API
-  const loadProducts = async (isRefreshing = false) => {
-    try {
-      if (!isRefreshing) {
-        setLoading(true);
-      } else {
-        setRefreshing(true);
-      }
-      setError(null);
-
-      const products = await apiService.getProducts();
-      setMenuItems(products);
-    } catch (err) {
-      console.error("Error loading products:", err);
-      setError("Erro ao carregar o menu. Tente novamente.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   useEffect(() => {
-    // Código de teste para apiService (descomente para usar)
-    //
-    // const testApiService = async () => {
-    //   try {
-    //     console.log("🧪 Testando apiService...");
-
-    //     const config = await apiService.getPaymentConfig();
-    //     console.log("✅ Payment Config:", config);
-
-    //     const pix = await apiService.generatePixPayment("IT123456", 59.9);
-    //     console.log("✅ PIX Generated:", pix);
-    //   } catch (error) {
-    //     console.error("❌ API Service Error:", error);
-    //   }
-    // };
-
-    // testApiService();
-
     loadProducts();
   }, []);
 
-  // Filtra itens por categoria
-  const filteredItems = menuItems.filter(
-    (item) => item.category === selectedCategory
-  );
-
-  const handleAddToCart = (menuItem: MenuItem) => {
-    setSelectedMenuItem(menuItem);
-    setCustomizationModalVisible(true);
+  const loadProducts = async () => {
+    try {
+      const productsData = await apiService.getProducts();
+      setProducts(productsData);
+    } catch (error) {
+      console.error("Erro ao carregar produtos:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCustomizationComplete = (cartItem: any) => {
-    console.log("Item customizado adicionado:", cartItem);
-    setCustomizationModalVisible(false);
-    setSelectedMenuItem(null);
+  // ✅ FUNÇÃO PARA ADICIONAR COM FEEDBACK
+  const handleAddItem = (item: MenuItem) => {
+    addItem(item, {
+      selectedSize: item.allowedSizes[0],
+      selectedAddOns: [],
+      selectedExtras: [],
+    });
+
+    Alert.alert("✅ Adicionado!", `${item.name} foi adicionado ao carrinho!`, [
+      { text: "Continuar Comprando", style: "cancel" },
+      {
+        text: "Ver Carrinho",
+        onPress: () => navigation.navigate("Checkout"),
+      },
+    ]);
   };
 
-  const handleRefresh = () => {
-    loadProducts(true);
-  };
+  const filteredProducts =
+    selectedCategory === "all"
+      ? products
+      : products.filter((product) => product.category === selectedCategory);
 
-  const renderCategoryItem = ({ item }: { item: (typeof categories)[0] }) => (
+  const renderCategoryItem = ({ item }: { item: (typeof CATEGORIES)[0] }) => (
     <TouchableOpacity
       style={[
-        styles.categoryItem,
-        selectedCategory === item.id && styles.categoryItemActive,
+        styles.categoryButton,
+        selectedCategory === item.key && styles.categoryButtonActive,
       ]}
-      onPress={() => setSelectedCategory(item.id)}
+      onPress={() => setSelectedCategory(item.key)}
     >
       <Text style={styles.categoryEmoji}>{item.emoji}</Text>
       <Text
         style={[
-          styles.categoryName,
-          selectedCategory === item.id && styles.categoryNameActive,
+          styles.categoryLabel,
+          selectedCategory === item.key && styles.categoryLabelActive,
         ]}
       >
-        {item.name}
+        {item.label}
       </Text>
     </TouchableOpacity>
   );
 
-  const renderMenuItem = ({ item }: { item: MenuItem }) => (
-    <View style={styles.menuItem}>
-      {/* Imagem do prato */}
-      <View style={styles.imageContainer}>
-        {item.images &&
-        item.images.length > 0 &&
-        typeof item.images[0] === "string" ? (
-          <Image
-            source={{ uri: item.images[0] }}
-            style={styles.itemImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={styles.imagePlaceholder}>
-            <Text style={styles.imagePlaceholderText}>📷</Text>
-            <Text style={styles.imagePlaceholderSubtext}>Imagem do prato</Text>
-          </View>
-        )}
+  const renderProductItem = ({ item }: { item: MenuItem }) => (
+    <TouchableOpacity
+      style={styles.productCard}
+      onPress={() => handleAddItem(item)}
+    >
+      <Image
+        source={getProductImage(item.images[0])}
+        style={styles.productImage}
+        resizeMode="cover"
+      />
+
+      <View style={styles.productInfo}>
+        <Text style={styles.productName}>{item.name}</Text>
+        <Text style={styles.productDescription} numberOfLines={2}>
+          {item.description}
+        </Text>
+        <Text style={styles.productPrice}>R$ {item.basePrice.toFixed(2)}</Text>
+
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => handleAddItem(item)}
+        >
+          <Text style={styles.addButtonText}>+ Adicionar</Text>
+        </TouchableOpacity>
       </View>
-
-      <View style={styles.itemInfo}>
-        <Text style={styles.itemName}>{item.name}</Text>
-        <Text style={styles.itemDescription}>{item.description}</Text>
-
-        {/* Tags */}
-        {item.tags && item.tags.length > 0 && (
-          <View style={styles.tagsContainer}>
-            {item.tags.map((tag, index) => (
-              <View key={index} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Informações de personalização disponível */}
-        <View style={styles.customizationInfo}>
-          {item.allowedPasta && item.allowedPasta.length > 0 && (
-            <Text style={styles.customizationText}>⚙️ Escolha a massa</Text>
-          )}
-          {item.allowedSauces && item.allowedSauces.length > 0 && (
-            <Text style={styles.customizationText}>🥫 Molhos disponíveis</Text>
-          )}
-          {item.allowedAddOns && item.allowedAddOns.length > 0 && (
-            <Text style={styles.customizationText}>
-              🍗 Adicionais opcionais
-            </Text>
-          )}
-          <Text style={styles.customizationText}>
-            📏 Tamanhos: {item.allowedSizes?.map((s: any) => s.name).join(", ")}
-          </Text>
-        </View>
-
-        <View style={styles.itemFooter}>
-          <Text style={styles.itemPrice}>
-            A partir de R$ {item.basePrice?.toFixed(2)}
-          </Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => handleAddToCart(item)}
-          >
-            <Text style={styles.addButtonText}>Personalizar</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
+    </TouchableOpacity>
   );
 
-  // Loading State
   if (loading) {
     return (
-      <View style={styles.container}>
-        <TouchableOpacity
-          style={styles.cartButton}
-          onPress={() => navigation.navigate("Cart" as never)}
-        >
-          <Text style={styles.cartIcon}>🛒</Text>
-          {state.itemCount > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{state.itemCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#e74c3c" />
-          <Text style={styles.loadingText}>Carregando menu...</Text>
-        </View>
-      </View>
-    );
-  }
-
-  // Error State
-  if (error && menuItems.length === 0) {
-    return (
-      <View style={styles.container}>
-        <TouchableOpacity
-          style={styles.cartButton}
-          onPress={() => navigation.navigate("Cart" as never)}
-        >
-          <Text style={styles.cartIcon}>🛒</Text>
-          {state.itemCount > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{state.itemCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorEmoji}>😕</Text>
-          <Text style={styles.errorTitle}>Ops! Algo deu errado</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() => loadProducts()}
-          >
-            <Text style={styles.retryButtonText}>Tentar Novamente</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#e74c3c" />
+        <Text>Carregando cardápio...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Header com carrinho */}
-      <TouchableOpacity
-        style={styles.cartButton}
-        onPress={() => navigation.navigate("Cart" as never)}
-      >
-        <Text style={styles.cartIcon}>🛒</Text>
-        {state.itemCount > 0 && (
-          <View style={styles.cartBadge}>
-            <Text style={styles.cartBadgeText}>{state.itemCount}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+      {/* ✅ HEADER COM CARRINHO */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>🍝 Italicita Delivery</Text>
+          <Text style={styles.headerSubtitle}>Cardápio</Text>
+        </View>
 
-      {/* Categorias */}
-      <View style={styles.categoriesContainer}>
+        {/* ✅ BADGE DO CARRINHO */}
+        <TouchableOpacity
+          style={styles.cartButton}
+          onPress={() => navigation.navigate("Checkout")}
+        >
+          <Text style={styles.cartIcon}>🛒</Text>
+          {state.itemCount > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>
+                {state.itemCount > 99 ? "99+" : state.itemCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* ✅ CATEGORIAS */}
+      <View style={styles.categoriesSection}>
+        <Text style={styles.sectionTitle}>Categorias</Text>
         <FlatList
-          data={categories}
+          data={CATEGORIES}
           renderItem={renderCategoryItem}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.key}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoriesList}
         />
       </View>
 
-      {/* Lista de Itens */}
-      <View style={styles.menuContainer}>
-        {filteredItems.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateEmoji}>🍽️</Text>
-            <Text style={styles.emptyStateText}>
-              Nenhum item encontrado nesta categoria
-            </Text>
-            <Text style={styles.emptyStateSubtext}>
-              Em breve teremos novidades!
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={filteredItems}
-            renderItem={renderMenuItem}
-            keyExtractor={(item) => item.id}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.menuList}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                colors={["#e74c3c"]}
-                tintColor="#e74c3c"
-              />
-            }
-          />
-        )}
-      </View>
+      {/* ✅ PRODUTOS */}
+      <View style={styles.productsSection}>
+        <Text style={styles.sectionTitle}>
+          {selectedCategory === "all"
+            ? "Todos os Produtos"
+            : CATEGORIES.find((cat) => cat.key === selectedCategory)?.label}
+        </Text>
 
-      {/* Modal de Customização */}
-      <CustomizationModal
-        visible={customizationModalVisible}
-        menuItem={selectedMenuItem}
-        onClose={() => {
-          setCustomizationModalVisible(false);
-          setSelectedMenuItem(null);
-        }}
-        onAddToCart={handleCustomizationComplete}
-      />
+        <FlatList
+          data={filteredProducts}
+          renderItem={renderProductItem}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          contentContainerStyle={styles.productsGrid}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
     </View>
   );
 };
@@ -327,19 +192,45 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f5f5",
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  header: {
+    backgroundColor: "#e74c3c",
+    padding: 20,
+    paddingTop: 50,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  headerContent: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "white",
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: "white",
+    opacity: 0.9,
+    marginTop: 5,
+  },
   cartButton: {
-    left: 0,
-    padding: 8,
+    padding: 10,
+    position: "relative",
   },
   cartIcon: {
-    textAlign: "right",
-    fontSize: 30,
+    fontSize: 24,
     color: "white",
   },
   cartBadge: {
     position: "absolute",
-    top: -5,
-    right: -5,
+    top: 0,
+    right: 0,
     backgroundColor: "#2ecc71",
     borderRadius: 10,
     minWidth: 20,
@@ -352,208 +243,98 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "bold",
   },
-  categoriesContainer: {
+  categoriesSection: {
     backgroundColor: "white",
-    paddingVertical: 10,
+    paddingVertical: 15,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
   },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 15,
+    color: "#333",
+    paddingHorizontal: 15,
+  },
   categoriesList: {
-    paddingHorizontal: 15,
+    paddingHorizontal: 10,
   },
-  categoryItem: {
+  categoryButton: {
     alignItems: "center",
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    marginRight: 10,
-    borderRadius: 20,
+    padding: 12,
+    marginHorizontal: 5,
+    borderRadius: 25,
     backgroundColor: "#f8f9fa",
-    minWidth: 80,
+    minWidth: 70,
   },
-  categoryItemActive: {
+  categoryButtonActive: {
     backgroundColor: "#e74c3c",
   },
   categoryEmoji: {
     fontSize: 20,
-    marginBottom: 4,
+    marginBottom: 5,
   },
-  categoryName: {
+  categoryLabel: {
     fontSize: 12,
     fontWeight: "600",
     color: "#666",
   },
-  categoryNameActive: {
+  categoryLabelActive: {
     color: "white",
   },
-  menuContainer: {
+  productsSection: {
     flex: 1,
     padding: 15,
   },
-  menuList: {
+  productsGrid: {
     paddingBottom: 20,
   },
-  menuItem: {
+  productCard: {
+    flex: 1,
+    margin: 8,
     backgroundColor: "white",
     borderRadius: 12,
-    marginBottom: 15,
-    overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  imageContainer: {
-    height: 160,
     overflow: "hidden",
   },
-  itemImage: {
+  productImage: {
     width: "100%",
-    height: "100%",
+    height: 120,
   },
-  imagePlaceholder: {
-    height: 160,
-    backgroundColor: "#f8f9fa",
-    justifyContent: "center",
-    alignItems: "center",
+  productInfo: {
+    padding: 12,
   },
-  imagePlaceholderText: {
-    fontSize: 40,
-    color: "#ccc",
-    marginBottom: 5,
-  },
-  imagePlaceholderSubtext: {
-    fontSize: 12,
-    color: "#999",
-  },
-  itemInfo: {
-    padding: 15,
-  },
-  itemName: {
-    fontSize: 18,
+  productName: {
+    fontSize: 14,
     fontWeight: "bold",
-    marginBottom: 5,
+    marginBottom: 4,
     color: "#333",
   },
-  itemDescription: {
-    fontSize: 14,
+  productDescription: {
+    fontSize: 11,
     color: "#666",
-    marginBottom: 10,
-    lineHeight: 20,
+    marginBottom: 8,
+    lineHeight: 14,
   },
-  tagsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 10,
-    gap: 5,
-  },
-  tag: {
-    backgroundColor: "#e8f4fd",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  tagText: {
-    fontSize: 10,
-    color: "#3498db",
-    fontWeight: "600",
-    textTransform: "lowercase",
-  },
-  customizationInfo: {
-    marginBottom: 15,
-  },
-  customizationText: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 2,
-  },
-  itemFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  itemPrice: {
+  productPrice: {
     fontSize: 16,
     fontWeight: "bold",
     color: "#e74c3c",
+    marginBottom: 8,
   },
   addButton: {
     backgroundColor: "#e74c3c",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    padding: 8,
+    borderRadius: 6,
+    alignItems: "center",
   },
   addButtonText: {
     color: "white",
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 40,
-  },
-  emptyStateEmoji: {
-    fontSize: 50,
-    marginBottom: 15,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 5,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: "#999",
-    textAlign: "center",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: "#666",
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    backgroundColor: "#f5f5f5",
-  },
-  errorEmoji: {
-    fontSize: 50,
-    marginBottom: 15,
-  },
-  errorTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 10,
-  },
-  errorText: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  retryButton: {
-    backgroundColor: "#e74c3c",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: "white",
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: "bold",
   },
 });
