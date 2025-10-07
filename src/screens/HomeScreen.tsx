@@ -131,27 +131,20 @@ const HomeScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       {/* ✅ HEADER COM CARRINHO */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>🍝 Italicita Delivery</Text>
-          <Text style={styles.headerSubtitle}>Cardápio</Text>
-        </View>
-
-        {/* ✅ BADGE DO CARRINHO */}
-        <TouchableOpacity
-          style={styles.cartButton}
-          onPress={() => navigation.navigate("Cart")}
-        >
-          <Text style={styles.cartIcon}>🛒</Text>
-          {state.itemCount > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>
-                {state.itemCount > 99 ? "99+" : state.itemCount}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
+      {/* ✅ BADGE DO CARRINHO */}
+      <TouchableOpacity
+        style={styles.cartButton}
+        onPress={() => navigation.navigate("Cart")}
+      >
+        <Text style={styles.cartIcon}>🛒</Text>
+        {state.itemCount > 0 && (
+          <View style={styles.cartBadge}>
+            <Text style={styles.cartBadgeText}>
+              {state.itemCount > 99 ? "99+" : state.itemCount}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
 
       {/* ✅ CATEGORIAS */}
       <View style={styles.categoriesSection}>
@@ -197,14 +190,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  header: {
-    backgroundColor: "#e74c3c",
-    padding: 20,
-    paddingTop: 50,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
   headerContent: {
     flex: 1,
   },
@@ -224,13 +209,14 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   cartIcon: {
+    textAlign: "right",
     fontSize: 24,
     color: "white",
   },
   cartBadge: {
     position: "absolute",
-    top: 0,
-    right: 0,
+    top: 5,
+    right: 5,
     backgroundColor: "#2ecc71",
     borderRadius: 10,
     minWidth: 20,
