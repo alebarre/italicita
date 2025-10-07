@@ -12,7 +12,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { useCart } from "../contexts/CartContext";
-import { MenuItem, RootStackParamList } from "../types";
+import { MenuItem, RootTabParamList } from "../types";
 import { apiService } from "../services/apiService";
 import { getProductImage } from "../utils/imageLoader";
 
@@ -29,7 +29,7 @@ const CATEGORIES: { key: string; label: string; emoji: string }[] = [
 
 const HomeScreen: React.FC = () => {
   const { addItem, state } = useCart();
-  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation<StackNavigationProp<RootTabParamList>>();
   const [products, setProducts] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -61,7 +61,7 @@ const HomeScreen: React.FC = () => {
       { text: "Continuar Comprando", style: "cancel" },
       {
         text: "Ver Carrinho",
-        onPress: () => navigation.navigate("Checkout"),
+        onPress: () => navigation.navigate("Cart"),
       },
     ]);
   };
@@ -140,7 +140,7 @@ const HomeScreen: React.FC = () => {
         {/* ✅ BADGE DO CARRINHO */}
         <TouchableOpacity
           style={styles.cartButton}
-          onPress={() => navigation.navigate("Checkout")}
+          onPress={() => navigation.navigate("Cart")}
         >
           <Text style={styles.cartIcon}>🛒</Text>
           {state.itemCount > 0 && (
