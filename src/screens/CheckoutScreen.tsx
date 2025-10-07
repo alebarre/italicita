@@ -61,6 +61,38 @@ const CheckoutScreen: React.FC = () => {
     return true;
   };
 
+  const navigateToPixPayment = async () => {
+    setIsLoading(true);
+
+    try {
+      if (!validateDeliveryData()) {
+        setIsLoading(false);
+        return;
+      }
+
+      // ✅ CRIAR PEDIDO PRIMEIRO
+      const order = await createOrder({
+        paymentMethod: "pix",
+        deliveryData,
+      });
+
+      console.log("✅ Navegando para PIX com order:", order.id);
+
+      // ✅ NAVEGAR COM PARÂMETROS CORRETOS
+      navigation.navigate("PixPayment", {
+        orderId: order.id,
+        amount: finalTotal, // ✅ Já inclui delivery
+        deliveryData,
+        items: state.items,
+      });
+    } catch (error) {
+      console.error("❌ Erro ao criar pedido PIX:", error);
+      Alert.alert("Erro", "Não foi possível processar seu pedido PIX.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const validatePaymentData = (): boolean => {
     if (paymentData.method === "card") {
       if (!paymentData.cardNumber?.trim()) {
@@ -248,12 +280,11 @@ const CheckoutScreen: React.FC = () => {
   // Finalizar pedido
   const handlePlaceOrder = async () => {
     if (paymentData.method === "pix") {
-      processPixPayment();
+      await navigateToPixPayment(); // ✅ Agora navega para PixPayment
     } else {
-      await processCardPayment();
+      await processCardPayment(); // ✅ Cartão vai direto para WhatsApp
     }
   };
-
   // Renderizar conteúdo baseado no passo atual
   const renderStepContent = () => {
     switch (currentStep) {
@@ -610,7 +641,7 @@ const CheckoutScreen: React.FC = () => {
             ) : (
               <Text style={styles.nextButtonText}>
                 {paymentData.method === "pix"
-                  ? "Pagar com PIX"
+                  ? "⏩ Ir para Pagamento PIX" // ✅ Texto mais claro
                   : "Confirmar Pedido"}
               </Text>
             )}

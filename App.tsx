@@ -51,6 +51,7 @@ const MainTabs = () => {
         },
         headerTintColor: "#fff",
         headerTitleStyle: {
+          fontSize: 40,
           fontWeight: "bold",
         },
       })}

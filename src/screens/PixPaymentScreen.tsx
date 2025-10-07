@@ -14,7 +14,8 @@ import { StackNavigationProp } from "@react-navigation/stack";
 import * as Clipboard from "expo-clipboard";
 import QRCode from "react-native-qrcode-svg";
 import { RootStackParamList, DeliveryData, CartItem } from "../types";
-import { pixService } from "../services/pixService";
+import { apiService } from "../services/apiService";
+import { useCart } from "../contexts/CartContext";
 
 type PixPaymentScreenRouteProp = RouteProp<RootStackParamList, "PixPayment">;
 type PixPaymentScreenNavigationProp = StackNavigationProp<
@@ -23,15 +24,16 @@ type PixPaymentScreenNavigationProp = StackNavigationProp<
 >;
 
 const PixPaymentScreen: React.FC = () => {
+  const { clearCart, state } = useCart();
   const navigation = useNavigation<PixPaymentScreenNavigationProp>();
   const route = useRoute<PixPaymentScreenRouteProp>();
 
+  // ✅ CORREÇÃO: Garantir que os parâmetros sejam extraídos corretamente
   const {
     orderId = "IT000001",
     amount = 0,
     deliveryData = {} as DeliveryData,
     items = [] as CartItem[],
-    clearCart, // ✅ Agora recebe clearCart dos params
   } = route.params || {};
 
   const [pixPayload, setPixPayload] = useState<string>("");
@@ -40,28 +42,107 @@ const PixPaymentScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [countdown, setCountdown] = useState(30 * 60);
+  const [paymentConfig, setPaymentConfig] = useState<any>(null);
+  const [supportInfo, setSupportInfo] = useState<any>(null);
 
   useEffect(() => {
-    generatePixCode();
-    startCountdown();
+    console.log("🔄 PixPaymentScreen montado - Parâmetros:", {
+      orderId,
+      amount,
+      itemsCount: items.length,
+    });
 
-    // Configurar o back handler corretamente
-    const backAction = () => {
-      showCancelAlert();
-      return true; // Sempre retorna true para prevenir o comportamento padrão
-    };
+    loadPaymentData();
 
     const backHandler = BackHandler.addEventListener(
       "hardwareBackPress",
-      backAction
+      showCancelAlert
     );
 
     return () => {
-      backHandler.remove(); // Remove o listener quando o componente desmonta
+      backHandler.remove();
     };
   }, []);
 
-  // Função separada para mostrar o alerta de cancelamento
+  // ✅ CORREÇÃO: Função simplificada para carregar dados
+  const loadPaymentData = async () => {
+    try {
+      setIsLoading(true);
+      console.log("🔍 DEBUG - Iniciando loadPaymentData");
+
+      // ✅ 1. Buscar PIX e Config em PARALELO para melhor performance
+      const [pixData, config] = await Promise.all([
+        apiService.generatePixPayment(orderId, amount),
+        apiService.getPaymentConfig().catch((configError) => {
+          console.warn("❌ Config falhou, usando padrão:", configError);
+          return { expirationTime: 30 * 60 }; // Fallback
+        }),
+      ]);
+
+      console.log("✅ DEBUG - Dados PIX recebidos:", pixData);
+      console.log("✅ DEBUG - Config recebida:", config);
+
+      // ✅ 2. VERIFICAR CONFIG ANTES DE USAR
+      if (!config) {
+        console.warn("⚠️ Config é undefined, usando valor padrão");
+        setCountdown(30 * 60); // 30 minutos padrão
+      } else {
+        setCountdown(config.expirationTime || 30 * 60);
+      }
+
+      // ✅ 3. SETAR DADOS PIX
+      setPixPayload(pixData.payload);
+      setQrCodeValue(pixData.qrCode);
+      setCopyPasteCode(pixData.copyPaste);
+    } catch (error: any) {
+      console.error("❌ Erro ao carregar PIX:", error);
+
+      // ✅ 4. FALLBACK COMPLETO EM CASO DE ERRO
+      Alert.alert(
+        "Atenção",
+        "Pagamento em modo demonstração. Use os dados fictícios para teste."
+      );
+
+      // ✅ DADOS FICTÍCIOS PARA CONTINUAR O FLUXO
+      setPixPayload(
+        `00020126580014br.gov.bcb.pix0136123456789005204000053039865406${amount.toFixed(
+          2
+        )}5802BR5913ITALICITA DELIVERY6008NITERÓI62070503${orderId}6304`
+      );
+      setQrCodeValue(
+        `00020126580014br.gov.bcb.pix0136123456789005204000053039865406${amount.toFixed(
+          2
+        )}5802BR5913ITALICITA DELIVERY6008NITERÓI62070503${orderId}6304`
+      );
+      setCopyPasteCode(
+        `00020126580014br.gov.bcb.pix013612345678900\n5204000053039865406${amount.toFixed(
+          2
+        )}\n5802BR5913ITALICITA DELIVERY\n6008NITERÓI62070503${orderId}\n6304`
+      );
+      setCountdown(30 * 60); // 30 minutos padrão
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ✅ CORREÇÃO: Countdown simplificado
+  useEffect(() => {
+    if (!isLoading) {
+      const interval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            handleExpiredPayment();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [isLoading]);
+
   const showCancelAlert = () => {
     Alert.alert(
       "Pagamento em Andamento",
@@ -70,58 +151,25 @@ const PixPaymentScreen: React.FC = () => {
         {
           text: "Continuar Pagamento",
           style: "cancel",
-          onPress: () => {}, // Não faz nada, só fecha o alerta
         },
         {
           text: "Cancelar Pedido",
           style: "destructive",
-          onPress: () => {
-            // Navega para MainTabs e limpa a stack de navegação
-            navigation.reset({
-              index: 0,
-              routes: [{ name: "MainTabs" }],
-            });
-          },
+          onPress: handleCancelOrder,
         },
       ]
     );
     return true;
   };
 
-  const generatePixCode = async () => {
-    try {
-      setIsLoading(true);
-
-      const pixInput = pixService.generateMockPixData(orderId, amount);
-      const pixData = pixService.generatePixPayload(pixInput);
-
-      setPixPayload(pixData.payload);
-      setQrCodeValue(pixData.qrCode);
-      setCopyPasteCode(pixData.copyPaste);
-    } catch (error) {
-      console.error("Erro ao gerar PIX:", error);
-      Alert.alert(
-        "Erro",
-        "Não foi possível gerar o código PIX. Tente novamente."
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const startCountdown = () => {
-    const interval = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          handleExpiredPayment();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
+  // ✅ CORREÇÃO: Função unificada para limpar carrinho e navegar
+  const handleCancelOrder = () => {
+    console.log("❌ Cancelando pedido e limpando carrinho...");
+    clearCart();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "MainTabs" }],
+    });
   };
 
   const handleExpiredPayment = () => {
@@ -132,6 +180,8 @@ const PixPaymentScreen: React.FC = () => {
         {
           text: "Fazer Novo Pedido",
           onPress: () => {
+            console.log("🔄 PIX expirado - limpando carrinho...");
+            clearCart();
             navigation.reset({
               index: 0,
               routes: [{ name: "MainTabs" }],
@@ -154,12 +204,7 @@ const PixPaymentScreen: React.FC = () => {
     try {
       await Clipboard.setStringAsync(pixPayload);
       setCopied(true);
-
-      Alert.alert(
-        "Sucesso",
-        "Código PIX copiado para a área de transferência!"
-      );
-
+      Alert.alert("Sucesso", "Código PIX copiado!");
       setTimeout(() => setCopied(false), 3000);
     } catch (error) {
       console.error("Erro ao copiar código:", error);
@@ -167,6 +212,7 @@ const PixPaymentScreen: React.FC = () => {
     }
   };
 
+  // ✅ CORREÇÃO: Função simplificada para confirmação de pagamento
   const handlePaymentConfirmed = () => {
     Alert.alert(
       "Pagamento Confirmado?",
@@ -176,19 +222,15 @@ const PixPaymentScreen: React.FC = () => {
         {
           text: "Já efetuei o pagamento",
           onPress: () => {
-            // ✅ LIMPA O CARRINHO ANTES DE NAVEGAR
-            if (clearCart) {
-              clearCart();
-            }
-
+            console.log("✅ Pagamento confirmado - limpando carrinho...");
+            clearCart();
             navigation.reset({
               index: 0,
               routes: [{ name: "MainTabs" }],
             });
-
             Alert.alert(
               "Pedido Confirmado!",
-              `Seu pedido ${orderId} está sendo preparado. Você receberá atualizações pelo WhatsApp.`
+              `Seu pedido ${orderId} está sendo preparado.`
             );
           },
         },
@@ -202,45 +244,17 @@ const PixPaymentScreen: React.FC = () => {
     ]);
   };
 
-  // Função para cancelar pedido manualmente (usada pelo botão)
-  const handleCancelOrder = () => {
-    Alert.alert(
-      "Cancelar Pedido",
-      "Tem certeza que deseja cancelar este pedido?",
-      [
-        {
-          text: "Continuar Pagamento",
-          style: "cancel",
-        },
-        {
-          text: "Sim, Cancelar",
-          style: "destructive",
-          onPress: () => {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: "MainTabs" }],
-            });
-          },
-        },
-      ]
-    );
-  };
-
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#e74c3c" />
-        <Text style={styles.loadingTitle}>Gerando código PIX...</Text>
-        <Text style={styles.loadingText}>Aguarde um momento</Text>
+        <Text style={styles.loadingTitle}>Carregando pagamento...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-    >
+    <ScrollView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>💰 Pagamento PIX</Text>
@@ -261,35 +275,21 @@ const PixPaymentScreen: React.FC = () => {
           <Text style={styles.summaryLabel}>Valor Total:</Text>
           <Text style={styles.amount}>R$ {amount.toFixed(2)}</Text>
         </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Itens:</Text>
-          <Text style={styles.summaryValue}>{items.length} itens</Text>
-        </View>
       </View>
 
       {/* QR Code */}
       <View style={styles.qrSection}>
         <Text style={styles.sectionTitle}>📷 Escaneie o QR Code</Text>
         <View style={styles.qrContainer}>
-          <QRCode
-            value={qrCodeValue}
-            size={220}
-            color="#000000"
-            backgroundColor="#FFFFFF"
-          />
+          <QRCode value={qrCodeValue} size={220} />
         </View>
-        <Text style={styles.qrInstruction}>
-          Abra o app do seu banco e escaneie o código acima
-        </Text>
       </View>
 
-      {/* Código PIX Copiável */}
+      {/* Código PIX */}
       <View style={styles.codeSection}>
         <Text style={styles.sectionTitle}>📋 Ou copie o código PIX</Text>
         <TouchableOpacity style={styles.codeContainer} onPress={handleCopyCode}>
-          <Text style={styles.codeText} selectable>
-            {copyPasteCode}
-          </Text>
+          <Text style={styles.codeText}>{copyPasteCode}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -297,48 +297,9 @@ const PixPaymentScreen: React.FC = () => {
           onPress={handleCopyCode}
         >
           <Text style={styles.copyButtonText}>
-            {copied ? "✓ Código Copiado!" : "📋 Copiar Código PIX"}
+            {copied ? "✓ Copiado!" : "📋 Copiar Código PIX"}
           </Text>
         </TouchableOpacity>
-      </View>
-
-      {/* Instruções */}
-      <View style={styles.instructions}>
-        <Text style={styles.sectionTitle}>📝 Como pagar com PIX</Text>
-
-        <View style={styles.step}>
-          <Text style={styles.stepNumber}>1</Text>
-          <Text style={styles.stepText}>Abra o app do seu banco</Text>
-        </View>
-
-        <View style={styles.step}>
-          <Text style={styles.stepNumber}>2</Text>
-          <Text style={styles.stepText}>Acesse a área PIX</Text>
-        </View>
-
-        <View style={styles.step}>
-          <Text style={styles.stepNumber}>3</Text>
-          <Text style={styles.stepText}>
-            Escaneie o QR Code ou cole o código
-          </Text>
-        </View>
-
-        <View style={styles.step}>
-          <Text style={styles.stepNumber}>4</Text>
-          <Text style={styles.stepText}>
-            Confirme o pagamento de R$ {amount.toFixed(2)}
-          </Text>
-        </View>
-
-        <View style={styles.step}>
-          <Text style={styles.stepNumber}>5</Text>
-          <Text style={styles.stepText}>Aguarde a confirmação automática</Text>
-        </View>
-
-        <Text style={styles.note}>
-          ⚡ O pagamento PIX é instantâneo. Seu pedido será preparado
-          automaticamente.
-        </Text>
       </View>
 
       {/* Botões de Ação */}
@@ -353,12 +314,12 @@ const PixPaymentScreen: React.FC = () => {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.supportButton} onPress={handleSupport}>
-          <Text style={styles.supportButtonText}>💬 Preciso de ajuda</Text>
+          <Text style={styles.supportButtonText}>💬 Ajuda</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.cancelButton}
-          onPress={handleCancelOrder} // Usa a nova função corrigida
+          onPress={handleCancelOrder}
         >
           <Text style={styles.cancelButtonText}>❌ Cancelar Pedido</Text>
         </TouchableOpacity>
@@ -367,22 +328,17 @@ const PixPaymentScreen: React.FC = () => {
   );
 };
 
-// Mantenha os mesmos styles do arquivo anterior...
+// Mantenha os styles (estão corretos)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8f9fa",
-  },
-  contentContainer: {
-    padding: 20,
-    paddingBottom: 40,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#f8f9fa",
-    padding: 20,
   },
   loadingTitle: {
     fontSize: 18,
@@ -390,14 +346,10 @@ const styles = StyleSheet.create({
     marginTop: 20,
     color: "#333",
   },
-  loadingText: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 5,
-  },
   header: {
     alignItems: "center",
     marginBottom: 25,
+    padding: 20,
   },
   title: {
     fontSize: 24,
@@ -412,11 +364,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 8,
     borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
   },
   timerLabel: {
     fontSize: 14,
@@ -433,11 +380,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 12,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginHorizontal: 20,
   },
   sectionTitle: {
     fontSize: 18,
@@ -471,39 +414,20 @@ const styles = StyleSheet.create({
     padding: 25,
     borderRadius: 12,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginHorizontal: 20,
   },
   qrContainer: {
     backgroundColor: "white",
     padding: 20,
     borderRadius: 12,
     marginBottom: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  qrInstruction: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    lineHeight: 20,
   },
   codeSection: {
     backgroundColor: "white",
     padding: 20,
     borderRadius: 12,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginHorizontal: 20,
   },
   codeContainer: {
     backgroundColor: "#f8f9fa",
@@ -517,7 +441,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "monospace",
     color: "#333",
-    lineHeight: 16,
     textAlign: "center",
   },
   copyButton: {
@@ -534,50 +457,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  instructions: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  step: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  stepNumber: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#e74c3c",
-    color: "white",
-    textAlign: "center",
-    lineHeight: 20,
-    fontWeight: "bold",
-    marginRight: 12,
-    fontSize: 12,
-  },
-  stepText: {
-    fontSize: 14,
-    color: "#333",
-    flex: 1,
-    lineHeight: 20,
-  },
-  note: {
-    fontSize: 12,
-    color: "#e74c3c",
-    fontStyle: "italic",
-    marginTop: 15,
-    lineHeight: 16,
-    textAlign: "center",
-  },
   actions: {
     gap: 10,
+    padding: 20,
   },
   confirmButton: {
     backgroundColor: "#2ecc71",

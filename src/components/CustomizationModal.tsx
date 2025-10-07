@@ -40,20 +40,51 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
   const [selectedAddOns, setSelectedAddOns] = useState<AddOnOption[]>([]);
   const [selectedExtras, setSelectedExtras] = useState<ExtraOption[]>([]);
 
+  // Fallback completo interface SizeOption
+  const defaultSizeFallback: SizeOption = {
+    id: "size-default",
+    name: "Junior",
+    description: "Tamanho padrão",
+    weight: "300g",
+    priceAdjustment: 0,
+    isAvailable: true,
+  };
+
   // Reset selections quando o modal abre com um novo item
   useEffect(() => {
     if (menuItem && visible) {
-      // Define o tamanho padrão como Junior
-      setSelectedSize(menuItem.allowedSizes[0]);
-      // Define a massa padrão (se houver apenas uma opção)
-      if (menuItem.allowedPasta && menuItem.allowedPasta.length === 1) {
+      // ✅ CORRETO: Fallback com tipo completo
+      const defaultSize =
+        menuItem.allowedSizes && menuItem.allowedSizes.length > 0
+          ? menuItem.allowedSizes[0]
+          : defaultSizeFallback;
+
+      setSelectedSize(defaultSize);
+
+      // ✅ Para massa também, se necessário
+      const defaultPastaFallback: PastaOption = {
+        id: "pasta-default",
+        name: "Massa Tradicional",
+        description: "Massa padrão do prato",
+        weight: "300g",
+        priceAdjustment: 0,
+        isAvailable: true,
+      };
+
+      if (menuItem.allowedPasta && menuItem.allowedPasta.length > 0) {
         setSelectedPasta(menuItem.allowedPasta[0]);
       }
-      // Limpa outras seleções
+
+      // Limpar outras seleções
       setSelectedSauce(undefined);
       setSelectedAddOns([]);
       setSelectedExtras([]);
     }
+    console.log("🔍 CustomizationModal - basePrice:", menuItem?.basePrice);
+    console.log(
+      "🔍 CustomizationModal - allowedSizes:",
+      menuItem?.allowedSizes
+    );
   }, [menuItem, visible]);
 
   const handleAddToCart = () => {
@@ -137,7 +168,14 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
     renderOption: (option: any, isSelected: boolean) => React.ReactNode
   ) => {
     if (!options || options.length === 0) return null;
-
+    console.log(
+      `🔍 ${title}:`,
+      options.map((opt) => ({
+        name: opt.name,
+        isAvailable: opt.isAvailable,
+        id: opt.id,
+      }))
+    );
     return (
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{title}</Text>
@@ -147,16 +185,18 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
               ? (selected as any[]).find((s) => s.id === option.id)
               : (selected as any)?.id === option.id;
 
+            const isAvailable = option.isAvailable !== false;
+
             return (
               <TouchableOpacity
                 key={option.id}
                 style={[
                   styles.optionCard,
                   isSelected && styles.optionCardSelected,
-                  !option.isAvailable && styles.optionCardDisabled,
+                  !isAvailable && styles.optionCardDisabled,
                 ]}
-                onPress={() => option.isAvailable && onSelect(option)}
-                disabled={!option.isAvailable}
+                onPress={() => isAvailable && onSelect(option)}
+                disabled={!isAvailable}
               >
                 {renderOption(option, isSelected)}
               </TouchableOpacity>
@@ -198,7 +238,7 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
           {/* Seção de Massas */}
           {renderOptionSection(
             "🍝 Escolha a Massa",
-            menuItem.allowedPasta || [],
+            menuItem.allowedPasta || [], // Fallback array vazio
             selectedPasta,
             setSelectedPasta,
             false,
@@ -226,7 +266,7 @@ const CustomizationModal: React.FC<CustomizationModalProps> = ({
           {/* Seção de Tamanhos */}
           {renderOptionSection(
             "📏 Escolha o Tamanho",
-            menuItem.allowedSizes,
+            menuItem.allowedSizes || [], //Fallback array vazio
             selectedSize,
             setSelectedSize,
             false,

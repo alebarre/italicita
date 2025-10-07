@@ -143,6 +143,7 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
     }
 
     case "CLEAR_CART":
+      console.log("🛒 REDUCER: CLEAR_CART - resetando estado");
       return {
         items: [],
         total: 0,
@@ -206,8 +207,8 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
   };
 
   const clearCart = () => {
-    console.log("🛒 CLEAR_CART called");
     dispatch({ type: "CLEAR_CART" });
+    console.log("🔄 Carrinho limpo pelo contexto");
   };
 
   // ✅ FUNÇÃO PARA CRIAR PEDIDO NO BACKEND
@@ -216,32 +217,26 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     deliveryData: DeliveryData;
   }): Promise<Order> => {
     try {
-      console.log("🛒 Creating order with data:", {
-        items: state.items,
-        total: state.total,
-        ...orderData,
-      });
+      console.log("🛒 Criando pedido no backend...");
 
       const order = await apiService.createOrder({
-        userId: "user-demo-1", // ✅ Usar ID que existe no banco
+        userId: "user-demo-1",
         items: state.items,
-        total: state.total + 5.0, // + taxa de entrega
+        total: state.total + 5.0, // ✅ Mesmo cálculo do frontend
         paymentMethod: orderData.paymentMethod,
         deliveryData: orderData.deliveryData,
       });
 
-      console.log("🛒 Order created successfully:", order);
+      console.log("✅ Pedido criado com sucesso:", order.id);
+
+      // ✅ LIMPAR CARRINHO APÓS PEDIDO CRIADO
+      dispatch({ type: "CLEAR_CART" });
+      console.log("🔄 Carrinho limpo após criar pedido");
 
       return order;
     } catch (error) {
-      console.error("🛒 Error creating order:", error);
-
-      // ✅ MELHOR TRATAMENTO DE ERRO
-      if (error instanceof Error) {
-        throw new Error(`Falha ao criar pedido: ${error.message}`);
-      } else {
-        throw new Error("Erro desconhecido ao criar pedido");
-      }
+      console.error("❌ Erro ao criar pedido:", error);
+      throw error;
     }
   };
 

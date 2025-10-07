@@ -66,6 +66,24 @@ const HomeScreen: React.FC = () => {
   };
 
   useEffect(() => {
+    // Código de teste para apiService (descomente para usar)
+    //
+    // const testApiService = async () => {
+    //   try {
+    //     console.log("🧪 Testando apiService...");
+
+    //     const config = await apiService.getPaymentConfig();
+    //     console.log("✅ Payment Config:", config);
+
+    //     const pix = await apiService.generatePixPayment("IT123456", 59.9);
+    //     console.log("✅ PIX Generated:", pix);
+    //   } catch (error) {
+    //     console.error("❌ API Service Error:", error);
+    //   }
+    // };
+
+    // testApiService();
+
     loadProducts();
   }, []);
 
@@ -80,7 +98,7 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleCustomizationComplete = (cartItem: any) => {
-    "Item customizado adicionado:", cartItem;
+    console.log("Item customizado adicionado:", cartItem);
     setCustomizationModalVisible(false);
     setSelectedMenuItem(null);
   };
@@ -164,7 +182,7 @@ const HomeScreen: React.FC = () => {
 
         <View style={styles.itemFooter}>
           <Text style={styles.itemPrice}>
-            A partir de R$ {item.basePrice.toFixed(2)}
+            A partir de R$ {item.basePrice?.toFixed(2)}
           </Text>
           <TouchableOpacity
             style={styles.addButton}
@@ -181,20 +199,17 @@ const HomeScreen: React.FC = () => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>🍝 Italicita Delivery</Text>
-          <TouchableOpacity
-            style={styles.cartButton}
-            onPress={() => navigation.navigate("Cart" as never)}
-          >
-            <Text style={styles.cartIcon}>🛒</Text>
-            {state.itemCount > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{state.itemCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.cartButton}
+          onPress={() => navigation.navigate("Cart" as never)}
+        >
+          <Text style={styles.cartIcon}>🛒</Text>
+          {state.itemCount > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{state.itemCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
 
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#e74c3c" />
@@ -208,20 +223,17 @@ const HomeScreen: React.FC = () => {
   if (error && menuItems.length === 0) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>🍝 Italicita Delivery</Text>
-          <TouchableOpacity
-            style={styles.cartButton}
-            onPress={() => navigation.navigate("Cart" as never)}
-          >
-            <Text style={styles.cartIcon}>🛒</Text>
-            {state.itemCount > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{state.itemCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.cartButton}
+          onPress={() => navigation.navigate("Cart" as never)}
+        >
+          <Text style={styles.cartIcon}>🛒</Text>
+          {state.itemCount > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{state.itemCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
 
         <View style={styles.errorContainer}>
           <Text style={styles.errorEmoji}>😕</Text>
@@ -241,20 +253,17 @@ const HomeScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       {/* Header com carrinho */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>🍝 Italicita Delivery</Text>
-        <TouchableOpacity
-          style={styles.cartButton}
-          onPress={() => navigation.navigate("Cart" as never)}
-        >
-          <Text style={styles.cartIcon}>🛒</Text>
-          {state.itemCount > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{state.itemCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity
+        style={styles.cartButton}
+        onPress={() => navigation.navigate("Cart" as never)}
+      >
+        <Text style={styles.cartIcon}>🛒</Text>
+        {state.itemCount > 0 && (
+          <View style={styles.cartBadge}>
+            <Text style={styles.cartBadgeText}>{state.itemCount}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
 
       {/* Categorias */}
       <View style={styles.categoriesContainer}>
@@ -318,26 +327,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f5f5",
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#e74c3c",
-    paddingHorizontal: 15,
-    paddingVertical: 20,
-    paddingTop: 50, // Para status bar
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "white",
-  },
   cartButton: {
-    position: "relative",
+    left: 0,
     padding: 8,
   },
   cartIcon: {
-    fontSize: 20,
+    textAlign: "right",
+    fontSize: 30,
     color: "white",
   },
   cartBadge: {

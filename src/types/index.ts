@@ -148,14 +148,14 @@ export const calculateItemPrice = (item: Omit<CartItem, 'id' | 'finalPrice'>): n
 // Tipos existentes (mantemos para compatibilidade)
 export interface Order {
     id: string;
+    userId?: string;
     items: CartItem[];
     total: number;
-    status: 'preparing' | 'on_the_way' | 'delivered' | 'canceled';
-    createdAt: Date;
-    deliveryAddress: string;
-    customerName: string;
-    customerPhone: string;
+    status: 'pending' | 'confirmed' | 'preparing' | 'on_the_way' | 'delivered' | 'canceled';
     paymentMethod: 'card' | 'pix';
+    deliveryData: DeliveryData;  // ✅ Compatível com backend
+    createdAt: string;           // ✅ Backend retorna string
+    updatedAt?: string;
 }
 
 export interface User {
